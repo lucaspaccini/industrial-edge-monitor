@@ -1,14 +1,42 @@
 # Architecture
-The system is composed of:
 
-1. ESP32 edge device
-2. MQTT broker
-3. Backend API
-4. Database
-5. Web dashboard
+```text
+Simulator
+    │
+    ▼
+ MQTT Broker
+    │
+    ▼
+Collector
+    │
+    ▼
+SQLite
+    │
+    ▼
+FastAPI
+    │
+    ▼
+Next.js Dashboard
+```
 
-Data flow:
+## Components
 
-ESP32 -> MQTT -> Backend -> SQLite -> Dashboard
+### Simulator
 
+Publishes MQTT telemetry messages.
 
+### Collector
+
+Subscribes to MQTT topics and stores telemetry into SQLite.
+
+### Database
+
+Stores telemetry history.
+
+### API
+
+Exposes telemetry through REST endpoints.
+
+### Frontend
+
+Displays telemetry and charts.

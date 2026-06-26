@@ -1,20 +1,43 @@
 # Industrial Edge Monitor
-  Industrial IoT edge monitoring platform built with ESP32, MQTT, Ubuntu Linux, FastAPI and Next.js.
 
-## Architecture
+Industrial Edge Monitor is an IoT monitoring platform designed to collect telemetry data from industrial devices using MQTT.
 
-ESP32 -> MQTT Broker -> Backend API -> Database -> Web Dashboard
+## Features
 
-## Tech Stack
+- MQTT communication
+- Telemetry collection
+- SQLite storage
+- REST API (FastAPI)
+- Web dashboard (Next.js) *(planned)*
 
-- ESP32 / ESP-IDF
-- MQTT / Mosquitto
-- Ubuntu Linux
+## Technology Stack
+
+- Python
 - FastAPI
 - SQLite
+- MQTT (Mosquitto)
 - Next.js
-- Docker
+- Docker *(planned)*
 
-## Status
+## Project Structure
 
-Work in progress.
+backend/
+collector/
+simulator/
+api/
+
+data/
+telemetry.db
+
+frontend/
+
+firmware/
+
+docs/
+
+## Current Status
+
+- MQTT ✔
+- Data persistence ✔
+- REST API ✔
+- Dashboard 🚧
