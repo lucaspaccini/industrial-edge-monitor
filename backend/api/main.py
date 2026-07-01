@@ -2,7 +2,14 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.api.routes.telemetry import router as telemetry_router
+from backend.api.routes.health import router as health_router
+
 from backend.api.config import settings
+
+from backend.api.core.logging import configure_logging, get_logger
+
+configure_logging()
+logger = get_logger(__name__)
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -22,6 +29,9 @@ app.add_middleware(
 )
 
 app.include_router(telemetry_router)
+app.include_router(health_router)
+
+logger.info("Industrial Edge Monitor API started")
 
 @app.get("/")
 
