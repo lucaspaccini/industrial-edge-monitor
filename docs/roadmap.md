@@ -37,7 +37,11 @@ Goal: build a scalable and maintainable architecture.
 
 ### Next
 
-- [ ] Configuration improvements
+- [x] Configuration improvements
+- [x] Shared backend core
+- [x] Shared services and repositories
+- [x] Collector architecture refactor
+- [x] Centralized database initialization
 - [ ] Dependency Injection
 - [ ] Statistics service
 - [ ] Repository abstraction
