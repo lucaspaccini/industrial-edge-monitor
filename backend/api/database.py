@@ -1,7 +1,7 @@
 from pathlib import Path
 import sqlite3
 
-from backend.api.config import settings
+from backend.core.config import settings
 
 
 BASE_DIR = Path(__file__).resolve().parents[2]

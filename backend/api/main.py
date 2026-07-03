@@ -4,9 +4,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from backend.api.routes.telemetry import router as telemetry_router
 from backend.api.routes.health import router as health_router
 
-from backend.api.config import settings
+from backend.core.config import settings
 
-from backend.api.core.logging import configure_logging, get_logger
+from backend.core.logging import configure_logging, get_logger
+
+from backend.database.init_db import initialize_database
 
 configure_logging()
 logger = get_logger(__name__)
@@ -19,10 +21,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-    ],
+    allow_origins=settings.cors_origins_list,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -30,6 +29,8 @@ app.add_middleware(
 
 app.include_router(telemetry_router)
 app.include_router(health_router)
+
+initialize_database()
 
 logger.info("Industrial Edge Monitor API started")
 

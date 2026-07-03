@@ -2,63 +2,46 @@ import json
 import sqlite3
 import paho.mqtt.client as mqtt
 
-DB_PATH = "data/telemetry.db"
-TOPIC = "factory/line1/machine1"
+from backend.core.config import settings
+from backend.services.telemetry_service import save_telemetry
+from backend.core.logging import configure_logging, get_logger
+from backend.database.init_db import initialize_database
+
+configure_logging()
+logger = get_logger(__name__)
+
+initialize_database();
 
 def on_connect(client, userdata, flags, rc):
-    print("Connected with result code:", rc)
-    client.subscribe(TOPIC)
-    print("Subscribed to: ", TOPIC)
+    logger.info("Connected with result code: %d", rc)
+    client.subscribe(settings.MQTT_TOPIC)
+    logger.info("Subscribed to: %s", settings.MQTT_TOPIC)
 
 def on_message(client, userdata, msg):
     try:
         payload = json.loads(msg.payload.decode())
 
-        conn = sqlite3.connect(DB_PATH)
-        cursor = conn.cursor()
+        save_telemetry(payload)
 
-        cursor.execute(""" 
-               CREATE TABLE IF NOT EXISTS telemetry
-               (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    timestamp TEXT,
-                    temperature REAL,
-                    humidity REAL,
-                    machine_status TEXT
-               )
-               """)
+        logger.info("Telemetry saved successfully: %s", payload)
 
-        cursor.execute("""
-                       INSERT INTO telemetry (
-                            timestamp,
-                            temperature,
-                            humidity,
-                            machine_status
-                       )
-                       VALUES (?, ?, ?, ?)
-                       """, (
-                       payload["timestamp"],
-                       payload["temperature"],
-                       payload["humidity"],
-                       payload["machine_status"]
-                       ))
-        conn.commit()
-        conn.close()
-
-        print("Saved: ", payload)
-    except Exception as e:
-        print("Error: ", e)
+    except Exception as exc:
+        logger.exception("Failed to process telemetry message")
 
 def main():
-    print("Subscriber started")
+    logger.info("Subscriber started")
 
     client = mqtt.Client()
     client.on_connect = on_connect
     client.on_message = on_message
 
-    client.connect("localhost", 1883, 60)
+    client.connect(
+        settings.MQTT_HOST,
+        settings.MQTT_PORT,
+        60,
+    )
 
-    print("MQTT subscriber started...")
+    logger.info("MQTT subscriber started...")
     client.loop_forever()
 
 

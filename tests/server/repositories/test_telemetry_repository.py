@@ -1,4 +1,4 @@
-from backend.api.repositories.telemetry_repository import (
+from backend.repositories.telemetry_repository import (
     fetch_latest_telemetry,
     fetch_telemetry_history,
 )

@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from backend.api.services.health_service import get_health_status
+from backend.services.health_service import get_health_status
 
 router = APIRouter(tags=["health"])
 

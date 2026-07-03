@@ -1,4 +1,4 @@
-from backend.api.config import settings
+from backend.core.config import settings
 from backend.api.database import get_connection
 
 

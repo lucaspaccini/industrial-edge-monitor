@@ -25,7 +25,6 @@ def fetch_telemetry_history(limit: int = 100):
         if conn is not None:
             conn.close()
 
-
 def fetch_latest_telemetry():
     conn = None
 
@@ -44,6 +43,32 @@ def fetch_latest_telemetry():
 
         row = cursor.fetchone()
         return dict(row) if row is not None else None
+
+    finally:
+        if conn is not None:
+            conn.close()
+
+def insert_telemetry(payload: dict):
+    conn = None
+
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+
+        cursor.execute(
+            """
+            INSERT INTO telemetry (timestamp, temperature, humidity, machine_status)
+            VALUES (?, ?, ?, ?)
+            """,
+            (
+                payload["timestamp"],
+                payload["temperature"],
+                payload["humidity"],
+                payload["machine_status"],
+            ),
+        )
+
+        conn.commit()
 
     finally:
         if conn is not None:

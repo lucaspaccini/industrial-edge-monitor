@@ -5,13 +5,15 @@ from datetime import datetime
 
 import paho.mqtt.client as mqtt
 
-BROKER = "localhost"
-PORT = 1883
-TOPIC = "factory/line1/machine1"
+from backend.core.config import settings
+from backend.core.logging import configure_logging, get_logger
+
+configure_logging()
+logger = get_logger(__name__)
 
 client = mqtt.Client()
 
-client.connect(BROKER,PORT)
+client.connect(settings.MQTT_HOST, settings.MQTT_PORT)
 
 while True:
 
@@ -23,11 +25,10 @@ while True:
             }
 
     client.publish(
-            TOPIC,
+            settings.MQTT_TOPIC,
             json.dumps(payload)
             )
 
-    print(payload)
-
+    logger.info("Publishing telemetry: %s", payload)
     time.sleep(2)
 
