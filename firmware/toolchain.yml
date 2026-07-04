@@ -1,0 +1,8 @@
+esp_idf: "v6.0.2"
+target: "esp32"
+board: "ESP32-WROOM-32U DevKitC"
+sensor: "BME280"
+host_os: "Ubuntu 24.04 LTS"
+language: "C"
+build_system: "CMake"
+mqtt_broker: "Mosquitto"

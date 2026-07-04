@@ -19,6 +19,11 @@
 - cd frontend
 - npm run dev
 
+# FIRMWARE
+
+## ESP-IDF
+- source ~/esp/esp-idf/export.sh
+
 # GITHUB
 
 ## MESSAGE COMMIT ROULES

@@ -95,3 +95,53 @@ Introduce domain-oriented telemetry features and expose aggregated statistics.
 ### Takeaway
 
 The backend now provides domain-level information instead of only exposing raw telemetry samples. The dashboard evolved from a telemetry viewer into an industrial monitoring dashboard with aggregated KPIs.
+
+---
+
+# Sprint 06 — Firmware Development Environment
+
+## Goal
+
+Prepare a reproducible ESP-IDF development environment and establish the foundation for firmware development on the ESP32.
+
+## Completed
+
+- Created the `firmware/` project structure
+- Defined the firmware modular architecture
+- Introduced the `components/` directory following ESP-IDF best practices
+- Added `firmware/README.md`
+- Added `firmware/toolchain.yml`
+- Added `docs/firmware-setup.md`
+- Added `firmware/.gitignore`
+- Added `sdkconfig.defaults`
+- Installed ESP-IDF v6.0.2
+- Installed the ESP32 toolchain
+- Verified the ESP-IDF installation (`idf.py --version`)
+- Configured serial port permissions (`dialout` group)
+- Created the first ESP-IDF project
+- Configured the project for the ESP32 target
+- Successfully built the firmware
+- Successfully flashed the firmware to the ESP32
+- Verified firmware execution through the serial monitor
+- Executed the first firmware application on real hardware
+
+## Decisions
+
+- Adopt the latest ESP-IDF stable release for the entire project lifecycle.
+- Keep the ESP-IDF toolchain outside the repository.
+- Document the development environment to ensure reproducibility.
+- Use a component-based firmware architecture (`components/`) instead of a monolithic `main/` implementation.
+- Follow the official ESP-IDF project structure whenever possible.
+- Validate every development milestone before introducing new functionality.
+
+## Takeaway
+
+A complete and reproducible ESP-IDF development environment has been established. The firmware architecture has been defined, the project successfully builds, flashes and runs on the ESP32, providing a solid foundation for future firmware development.
+
+## Next Sprint
+
+- Initialize the Wi-Fi module
+- Connect the ESP32 to the local network
+- Implement the MQTT client
+- Publish a first telemetry message
+- Verify end-to-end communication with the MQTT broker

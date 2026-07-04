@@ -23,7 +23,7 @@ This roadmap describes the planned evolution of the Industrial Edge Monitor proj
 
 ---
 
-# Phase 2 — Software Architecture 🚧
+# Phase 2 — Software Architecture ✅
 
 Goal: build a scalable and maintainable architecture.
 
@@ -40,6 +40,9 @@ Goal: build a scalable and maintainable architecture.
 - [x] Database initialization
 - [x] Initial testing infrastructure
 - [x] Service Objects
+- [x] Telemetry statistics service
+- [x] Telemetry statistics API
+- [x] Dashboard statistics integration
 
 ### Future Improvements
 
@@ -49,18 +52,34 @@ Goal: build a scalable and maintainable architecture.
 
 ---
 
-# Phase 3 — Software Quality
+# Phase 3 — Embedded Integration 🚧
 
-Goal: improve reliability and maintainability.
+Goal: replace the simulator with real hardware.
 
-- [ ] Unit Tests
-- [ ] Integration Tests
-- [ ] Docker
-- [ ] CI/CD
-- [ ] Code Coverage
-- [ ] Pre-commit hooks
-- [ ] Linting
-- [ ] Type Checking
+## Foundation
+
+- [x] ESP32-WROOM-32U setup
+- [x] ESP-IDF development environment
+- [x] Firmware project initialization
+- [x] Firmware build
+- [x] Firmware flashing
+- [x] Serial monitor verification
+
+## Connectivity
+
+- [ ] Wi-Fi connection
+- [ ] MQTT client
+- [ ] MQTT publishing
+- [ ] Replace simulator with ESP32
+
+## Sensors
+
+- [ ] BME280 integration
+- [ ] Real-time telemetry acquisition
+
+## Future Improvements
+
+- [ ] OTA updates (optional)
 
 ---
 
@@ -68,36 +87,38 @@ Goal: improve reliability and maintainability.
 
 Goal: create a production-like monitoring interface.
 
+- [ ] Dashboard layout redesign
 - [ ] History page
-- [ ] Statistics page
 - [ ] Multiple charts
 - [ ] Device status
 - [ ] System health dashboard
+- [ ] Industrial KPI cards
 - [ ] Responsive layout improvements
 
 ---
 
-# Phase 5 — Embedded Integration
+# Phase 5 — Engineering Excellence
 
-Goal: replace the simulator with real hardware.
+Goal: improve reliability, maintainability and deployment.
 
-## Hardware
-
-- [ ] ESP32-WROOM-32U
-- [ ] BME280
-- [ ] Wi-Fi provisioning
-- [ ] MQTT publishing
-- [ ] OTA updates (optional)
+- [ ] Unit Tests
+- [ ] Integration Tests
+- [ ] Docker
+- [ ] Docker Compose
+- [ ] CI/CD
+- [ ] Code Coverage
+- [ ] Pre-commit hooks
+- [ ] Linting
+- [ ] Type Checking
+- [ ] Raspberry Pi deployment
+- [ ] Production configuration
 
 ---
 
-# Phase 6 — Production Ready
+# Phase 6 — Release
 
-Goal: prepare the project for deployment.
+Goal: prepare the project for public release.
 
-- [ ] Docker Compose
-- [ ] Raspberry Pi deployment
-- [ ] Production configuration
 - [ ] Complete documentation
 - [ ] Architecture diagrams
 - [ ] Release v1.0.0
