@@ -3,7 +3,7 @@ import sqlite3
 import paho.mqtt.client as mqtt
 
 from backend.core.config import settings
-from backend.services.telemetry_service import save_telemetry
+from backend.services.telemetry_service import telemetry_service
 from backend.core.logging import configure_logging, get_logger
 from backend.database.init_db import initialize_database
 
@@ -21,7 +21,7 @@ def on_message(client, userdata, msg):
     try:
         payload = json.loads(msg.payload.decode())
 
-        save_telemetry(payload)
+        telemetry_service.save_telemetry(payload)
 
         logger.info("Telemetry saved successfully: %s", payload)
 

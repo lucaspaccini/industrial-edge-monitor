@@ -31,19 +31,19 @@ Goal: build a scalable and maintainable architecture.
 
 - [x] Service Layer
 - [x] Repository Layer
+- [x] Shared Core
+- [x] Shared Services
+- [x] Shared Repositories
 - [x] Health endpoint
 - [x] Centralized logging
+- [x] Configuration management
+- [x] Database initialization
 - [x] Initial testing infrastructure
+- [x] Service Objects
 
-### Next
+### Future Improvements
 
-- [x] Configuration improvements
-- [x] Shared backend core
-- [x] Shared services and repositories
-- [x] Collector architecture refactor
-- [x] Centralized database initialization
-- [ ] Dependency Injection
-- [ ] Statistics service
+- [ ] FastAPI Dependency Injection
 - [ ] Repository abstraction
 - [ ] API versioning
 
@@ -56,9 +56,11 @@ Goal: improve reliability and maintainability.
 - [ ] Unit Tests
 - [ ] Integration Tests
 - [ ] Docker
-- [ ] GitHub Actions
+- [ ] CI/CD
 - [ ] Code Coverage
 - [ ] Pre-commit hooks
+- [ ] Linting
+- [ ] Type Checking
 
 ---
 

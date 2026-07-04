@@ -73,3 +73,32 @@ def insert_telemetry(payload: dict):
     finally:
         if conn is not None:
             conn.close()
+
+def fetch_telemetry_statistics():
+    conn = None
+
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+
+        cursor.execute(
+            """
+            SELECT
+                COUNT(*) AS samples,
+                MIN(temperature) AS min_temperature,
+                MAX(temperature) AS max_temperature,
+                AVG(temperature) AS avg_temperature,
+                MIN(humidity) AS min_humidity,
+                MAX(humidity) AS max_humidity,
+                AVG(humidity) AS avg_humidity,
+                MAX(timestamp) AS last_update
+            FROM telemetry
+            """
+        )
+
+        row = cursor.fetchone()
+        return dict(row) if row is not None else None
+
+    finally:
+        if conn is not None:
+            conn.close()
