@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     # MQTT
     MQTT_HOST: str = "localhost"
     MQTT_PORT: int = 1883
-    MQTT_TOPIC: str = "factory/line1/machine1"
+    MQTT_TOPIC: str = "industrial/telemetry"
 
     # CORS
     CORS_ORIGINS: str = "http://localhost:3000,http://127.0.0.1:3000"

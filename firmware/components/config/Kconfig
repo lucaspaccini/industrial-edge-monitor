@@ -1,0 +1,46 @@
+menu "Connectivity Configuration"
+
+config WIFI_SSID
+    string "Wi-Fi SSID"
+    default ""
+
+config WIFI_PASSWORD
+    string "Wi-Fi Password"
+    default ""
+
+config WIFI_MAXIMUM_RETRY
+    int "Wi-Fi maximum retry attempts"
+    default 5
+    range 1 20
+    
+config MQTT_HOST
+    string "MQTT Host"
+    default "<broker-ip>"
+
+config MQTT_PORT
+    int "MQTT Port"
+    default 1883
+    range 1 65535
+
+config MQTT_TOPIC
+    string "MQTT Topic"
+    default "industrial/telemetry"
+
+config MQTT_CLIENT_ID
+    string "MQTT Client ID"
+    default "industrial-edge-monitor"
+
+config MQTT_QOS
+    int "MQTT QoS"
+    default 1
+    range 0 2
+
+endmenu
+
+menu "Telemetry Configuration"
+
+config TELEMETRY_PUBLISH_PERIOD_MS
+    int "Telemetry publish period (ms)"
+    default 5000
+
+endmenu

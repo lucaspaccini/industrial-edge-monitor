@@ -46,7 +46,7 @@ Each module has a single responsibility.
 | wifi | Wi-Fi connection |
 | mqtt | MQTT communication |
 | sensors | Sensor drivers |
-| telemetry | Telemetry generation |
+| telemetry | Telemetry publishing |
 | utils | Shared utilities |
 
 ---

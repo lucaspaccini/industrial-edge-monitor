@@ -138,10 +138,37 @@ Prepare a reproducible ESP-IDF development environment and establish the foundat
 
 A complete and reproducible ESP-IDF development environment has been established. The firmware architecture has been defined, the project successfully builds, flashes and runs on the ESP32, providing a solid foundation for future firmware development.
 
+# Sprint 07 — Network Connectivity
+
+## Goal
+
+Implement the networking layer of the firmware, introducing a modular connectivity architecture and establishing the first Wi-Fi connection.
+
+## Completed
+
+- Created the firmware component architecture
+- Added the `config` component
+- Integrated Kconfig into the project
+- Centralized firmware configuration
+- Implemented the Wi-Fi component
+- Connected the ESP32 to the local Wi-Fi network
+- Verified DHCP network configuration
+- Validated the firmware architecture on real hardware
+
+## Decisions
+
+- Adopt Kconfig as the official firmware configuration system.
+- Keep firmware configuration aligned with the backend configuration model.
+- Store Wi-Fi and MQTT parameters through Kconfig instead of hardcoded values.
+- Keep each firmware component responsible for its own configuration.
+
+## Takeaway
+
+The firmware now has a modular architecture with a centralized configuration system based on Kconfig. The ESP32 successfully connects to the local Wi-Fi network, validating the embedded architecture before introducing MQTT communication.
+
 ## Next Sprint
 
-- Initialize the Wi-Fi module
-- Connect the ESP32 to the local network
-- Implement the MQTT client
-- Publish a first telemetry message
-- Verify end-to-end communication with the MQTT broker
+- Implement the MQTT component
+- Connect to the Mosquitto broker
+- Publish the first telemetry message
+- Replace the Python simulator with the ESP32 publisher

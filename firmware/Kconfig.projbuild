@@ -1,0 +1,5 @@
+menu "Industrial Edge Monitor"
+
+source "components/config/Kconfig"
+
+endmenu

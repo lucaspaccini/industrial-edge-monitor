@@ -245,3 +245,23 @@ ls /dev/ttyUSB* /dev/ttyACM*
 ```
 
 Verify that the USB cable supports data transfer.
+
+# Firmware Configuration
+
+The firmware uses the ESP-IDF Kconfig system for project configuration.
+
+Open the configuration menu:
+
+```bash
+idf.py menuconfig
+```
+
+The project configuration is available under:
+
+```text
+Industrial Edge Monitor
+├── Connectivity Configuration
+└── Telemetry Configuration
+```
+
+Configuration values are stored in the `sdkconfig` file and exposed to the firmware through `sdkconfig.h`.

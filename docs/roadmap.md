@@ -67,7 +67,9 @@ Goal: replace the simulator with real hardware.
 
 ## Connectivity
 
-- [ ] Wi-Fi connection
+- [x] Firmware component architecture
+- [x] Kconfig integration
+- [x] Wi-Fi connection
 - [ ] MQTT client
 - [ ] MQTT publishing
 - [ ] Replace simulator with ESP32
