@@ -70,9 +70,13 @@ Goal: replace the simulator with real hardware.
 - [x] Firmware component architecture
 - [x] Kconfig integration
 - [x] Wi-Fi connection
-- [ ] MQTT client
-- [ ] MQTT publishing
+- [x] MQTT connectivity
+- [x] First telemetry published from ESP32
+- [ ] BME280 integration
+- [ ] Telemetry data model
+- [ ] Replace static payload with sensor data
 - [ ] Replace simulator with ESP32
+- [ ] OTA updates (optional)
 
 ## Sensors
 

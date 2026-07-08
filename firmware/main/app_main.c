@@ -2,7 +2,7 @@
 
 #include "config.h"
 #include "wifi.h"
-#include "mqtt_client.h"
+#include "mqtt_client_app.h"
 #include "telemetry.h"
 
 static const char *TAG = "industrial_edge_monitor";
@@ -13,5 +13,4 @@ void app_main(void)
 
     wifi_init();
     mqtt_init();
-    telemetry_start();
 }

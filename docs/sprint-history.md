@@ -138,6 +138,8 @@ Prepare a reproducible ESP-IDF development environment and establish the foundat
 
 A complete and reproducible ESP-IDF development environment has been established. The firmware architecture has been defined, the project successfully builds, flashes and runs on the ESP32, providing a solid foundation for future firmware development.
 
+---
+
 # Sprint 07 — Network Connectivity
 
 ## Goal
@@ -166,9 +168,40 @@ Implement the networking layer of the firmware, introducing a modular connectivi
 
 The firmware now has a modular architecture with a centralized configuration system based on Kconfig. The ESP32 successfully connects to the local Wi-Fi network, validating the embedded architecture before introducing MQTT communication.
 
+---
+
+# Sprint 08 — MQTT Integration
+
+## Goal
+
+Integrate MQTT communication into the firmware and establish the first end-to-end telemetry flow between the ESP32 and the Industrial Edge Monitor backend.
+
+## Completed
+
+- Added the MQTT client component
+- Integrated the ESP-MQTT managed component
+- Implemented the MQTT connection lifecycle
+- Connected the ESP32 to the local MQTT broker
+- Implemented telemetry publishing
+- Published the first telemetry message from the ESP32
+- Successfully received telemetry through the Python collector
+- Persisted telemetry into the SQLite database
+- Validated the complete end-to-end communication pipeline
+
+## Decisions
+
+- Keep MQTT communication isolated inside a dedicated firmware component.
+- Publish telemetry only after a successful MQTT connection.
+- Use a static telemetry payload before integrating real sensor data.
+- Keep the backend unchanged while replacing the Python simulator with the ESP32.
+
+## Takeaway
+
+The firmware is now fully integrated with the existing backend architecture. The ESP32 successfully publishes telemetry through MQTT, which is collected, processed and stored by the backend, validating the complete communication pipeline from the embedded device to the database.
+
 ## Next Sprint
 
-- Implement the MQTT component
-- Connect to the Mosquitto broker
-- Publish the first telemetry message
-- Replace the Python simulator with the ESP32 publisher
+- Integrate the BME280 sensor
+- Replace the static telemetry payload with real sensor measurements
+- Introduce a telemetry data model
+- Implement JSON serialization

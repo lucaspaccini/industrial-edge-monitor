@@ -3,6 +3,7 @@ build/
 
 # ESP-IDF configuration
 sdkconfig
+sdkconfig.old
 
 # Managed components
 managed_components/
