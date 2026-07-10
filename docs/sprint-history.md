@@ -199,9 +199,40 @@ Integrate MQTT communication into the firmware and establish the first end-to-en
 
 The firmware is now fully integrated with the existing backend architecture. The ESP32 successfully publishes telemetry through MQTT, which is collected, processed and stored by the backend, validating the complete communication pipeline from the embedded device to the database.
 
+---
+
+# Sprint 09 — Telemetry Engine
+
+## Goal
+
+Design and implement a modular telemetry engine capable of periodically collecting, assembling and publishing telemetry data, establishing the internal firmware architecture before integrating real hardware sensors.
+
+## Completed
+
+- Replaced the one-shot telemetry publish with a periodic FreeRTOS task
+- Implemented the `telemetry` component as the telemetry scheduler
+- Introduced the `telemetry_model` module to aggregate telemetry data
+- Introduced the `telemetry_json` module for JSON serialization
+- Created the `sensor` component with a simulated sensor interface
+- Created the `machine_status` component
+- Created the `system_time` component
+- Decoupled telemetry generation from MQTT communication
+- Validated periodic telemetry publishing through the complete backend pipeline
+
+## Decisions
+
+- Keep the telemetry engine independent from the MQTT transport layer.
+- Separate telemetry scheduling, data aggregation and JSON serialization into dedicated modules.
+- Introduce dedicated provider components (`sensor`, `machine_status`, `system_time`) to isolate data sources from the telemetry model.
+- Simulate hardware data until the BME280 driver is integrated.
+
+## Takeaway
+
+The firmware now provides a modular telemetry engine based on clearly separated responsibilities. The telemetry pipeline is independent from the underlying hardware implementation, allowing future sensor integrations without impacting the communication layer or the backend architecture.
+
 ## Next Sprint
 
-- Integrate the BME280 sensor
-- Replace the static telemetry payload with real sensor measurements
-- Introduce a telemetry data model
-- Implement JSON serialization
+- Integrate the BME280 driver
+- Replace simulated sensor values with real measurements
+- Generate real timestamps through SNTP synchronization
+- Extend the telemetry model with additional hardware data

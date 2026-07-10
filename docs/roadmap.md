@@ -54,7 +54,7 @@ Goal: build a scalable and maintainable architecture.
 
 # Phase 3 — Embedded Integration 🚧
 
-Goal: replace the simulator with real hardware.
+Goal: replace the simulator with a modular embedded firmware running on the ESP32.
 
 ## Foundation
 
@@ -71,20 +71,26 @@ Goal: replace the simulator with real hardware.
 - [x] Kconfig integration
 - [x] Wi-Fi connection
 - [x] MQTT connectivity
+
+## Telemetry Engine
+
+- [x] Periodic telemetry task
+- [x] Telemetry data model
+- [x] JSON serialization
+- [x] Sensor abstraction layer
+- [x] Machine status provider
+- [x] System time provider
 - [x] First telemetry published from ESP32
-- [ ] BME280 integration
-- [ ] Telemetry data model
-- [ ] Replace static payload with sensor data
-- [ ] Replace simulator with ESP32
-- [ ] OTA updates (optional)
 
 ## Sensors
 
-- [ ] BME280 integration
+- [ ] BME280 driver
+- [ ] Replace simulated sensor values with real measurements
 - [ ] Real-time telemetry acquisition
 
-## Future Improvements
+## Deployment
 
+- [ ] Replace Python simulator with ESP32
 - [ ] OTA updates (optional)
 
 ---
