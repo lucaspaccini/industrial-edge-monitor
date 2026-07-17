@@ -1,15 +1,16 @@
 # Firmware
 
-Firmware for the ESP32-based telemetry device of the Industrial Edge Monitor project.
+Firmware for the ESP32-based telemetry device of the **Industrial Edge Monitor** project.
 
 ## Purpose
 
 The firmware is responsible for:
 
-- Connecting the ESP32 to the Wi-Fi network.
-- Connecting to the MQTT broker.
-- Reading telemetry from the connected sensors.
-- Publishing telemetry messages in JSON format.
+- Initializing the hardware platform.
+- Managing Wi-Fi connectivity.
+- Managing MQTT communication.
+- Acquiring environmental telemetry from connected sensors.
+- Publishing telemetry in JSON format.
 
 The firmware is **not** responsible for:
 
@@ -22,32 +23,129 @@ These responsibilities belong to the backend services.
 
 ---
 
-# Project Structure
+## Design Principles
+
+The firmware follows a modular component-based architecture.
+
+Each component owns a single responsibility and exposes a minimal public API through its header files. Implementation details remain private within each component, reducing coupling and improving maintainability.
+
+This architecture allows hardware drivers, communication services and application logic to evolve independently while keeping the firmware scalable and easy to extend.
+
+---
+
+## Project Structure
 
 ```text
 firmware/
+├── components/
+│   ├── bme280/            # Environmental sensor driver
+│   ├── config/            # Project configuration
+│   ├── i2c_bus/           # Shared I²C bus management
+│   ├── machine_status/    # Machine status provider
+│   ├── mqtt_client_app/   # MQTT communication
+│   ├── sensor/            # Hardware-independent sensor abstraction
+│   ├── system_time/       # Timestamp generation
+│   ├── telemetry/         # Telemetry acquisition and publishing
+│   ├── utils/             # Shared utilities
+│   └── wifi/              # Wi-Fi connectivity
+│
 ├── main/
-│   ├── app_main.c
-│   ├── config/
-│   ├── wifi/
-│   ├── mqtt/
-│   ├── sensors/
-│   ├── telemetry/
-│   └── utils/
+│   └── app_main.c
+│
 ├── sdkconfig.defaults
+├── idf_component.yml
 └── README.md
 ```
 
-Each module has a single responsibility.
+Each component has a well-defined responsibility.
 
-| Module | Responsibility |
-|----------|---------------|
+| Component | Responsibility |
+|-----------|----------------|
 | config | Project configuration |
-| wifi | Wi-Fi connection |
-| mqtt | MQTT communication |
-| sensors | Sensor drivers |
-| telemetry | Telemetry publishing |
-| utils | Shared utilities |
+| wifi | Wi-Fi connectivity |
+| mqtt_client_app | MQTT communication |
+| telemetry | Collects telemetry and publishes MQTT messages |
+| sensor | Hardware-independent environmental sensor abstraction |
+| bme280 | Bosch BME280 device driver |
+| i2c_bus | Shared I²C bus management |
+| machine_status | Machine state provider |
+| system_time | Timestamp generation |
+| utils | Shared helper functions |
+
+---
+
+## Firmware Architecture
+
+```text
+                        +----------------------+
+                        |       app_main       |
+                        +----------+-----------+
+                                   |
+                  +----------------+----------------+
+                  |                                 |
+                  ▼                                 ▼
+             Telemetry                        Wi-Fi Services
+                  │                                 │
+        +---------+---------+                       │
+        │                   │                       │
+        ▼                   ▼                       ▼
+     Sensor           MQTT Client            Wi-Fi Connection
+        │
+        ▼
+   BME280 Driver
+        │
+        ▼
+     I²C Bus
+```
+
+---
+
+## Telemetry Pipeline
+
+```text
+BME280 Driver
+      │
+      ▼
+Sensor Abstraction
+      │
+      ▼
+Telemetry
+      │
+      ▼
+MQTT Client
+      │
+      ▼
+MQTT Broker
+```
+
+The firmware is responsible for the entire telemetry pipeline up to the MQTT broker. Data persistence, processing and visualization are handled by the backend services.
+
+---
+
+## Component Responsibilities
+
+The firmware is organized into logical layers.
+
+```text
+Application
+    app_main
+
+Application Services
+    telemetry
+    mqtt_client_app
+    wifi
+    machine_status
+    system_time
+
+Hardware Abstraction
+    sensor
+
+Device Drivers
+    bme280
+    i2c_bus
+```
+
+Each component exposes a clean public interface and depends only on the services it requires. This separation improves maintainability, testability and makes it easier to replace hardware implementations without affecting the upper layers.
 
 ---
 
@@ -129,7 +227,9 @@ Configuration files:
 
 # Coding Guidelines
 
-- Keep modules focused on a single responsibility.
+- Keep each component focused on a single responsibility.
+- Expose clean public APIs through component headers.
+- Hide implementation details inside component source files.
 - Avoid business logic inside hardware drivers.
-- Keep hardware-independent logic separated whenever possible.
-- Prefer reusable modules over monolithic `app_main.c`.
+- Keep hardware-independent logic separated from device-specific code.
+- Prefer reusable components over monolithic application code.

@@ -84,9 +84,13 @@ Goal: replace the simulator with a modular embedded firmware running on the ESP3
 
 ## Sensors
 
-- [ ] BME280 driver
-- [ ] Replace simulated sensor values with real measurements
-- [ ] Real-time telemetry acquisition
+- [x] BME280 driver
+- [x] Sensor abstraction layer
+- [x] Replace simulated sensor values with real measurements
+- [x] Real-time telemetry acquisition
+- [ ] Support multiple sensor providers
+- [ ] Sensor health monitoring
+- [ ] Sensor self-test during startup
 
 ## Deployment
 

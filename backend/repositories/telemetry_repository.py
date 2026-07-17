@@ -36,7 +36,7 @@ def fetch_latest_telemetry():
             """
             SELECT id, timestamp, temperature, humidity, machine_status
             FROM telemetry
-            ORDER BY timestamp DESC
+            ORDER BY id DESC
             LIMIT 1
             """
         )

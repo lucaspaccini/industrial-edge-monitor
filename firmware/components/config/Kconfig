@@ -44,3 +44,27 @@ config TELEMETRY_PUBLISH_PERIOD_MS
     default 5000
 
 endmenu
+
+menu "Sensor Configuration"
+
+config I2C_SDA_GPIO
+    int "I2C SDA GPIO"
+    default 21
+    range 0 39
+
+config I2C_SCL_GPIO
+    int "I2C SCL GPIO"
+    default 22
+    range 0 39
+
+config I2C_FREQUENCY_HZ
+    int "I2C frequency (Hz)"
+    default 100000
+    range 10000 400000
+
+config BME280_I2C_ADDRESS
+    hex "BME280 I2C address"
+    default 0x76
+    range 0x76 0x77
+
+endmenu

@@ -230,9 +230,38 @@ Design and implement a modular telemetry engine capable of periodically collecti
 
 The firmware now provides a modular telemetry engine based on clearly separated responsibilities. The telemetry pipeline is independent from the underlying hardware implementation, allowing future sensor integrations without impacting the communication layer or the backend architecture.
 
+# Sprint 10 — Real Sensor Integration
+
+## Goal
+
+Replace the simulated telemetry source with a real hardware sensor by developing and integrating a complete BME280 driver while preserving the modular firmware architecture.
+
+## Completed
+
+- Implemented a complete BME280 device driver
+- Added I²C device management through the shared bus component
+- Implemented sensor reset, configuration and calibration loading
+- Implemented Bosch compensation algorithms for temperature, humidity and pressure
+- Replaced the simulated sensor provider with the real BME280
+- Extended the sensor abstraction to expose real environmental measurements
+- Validated the complete telemetry pipeline from hardware acquisition to MQTT publishing
+- Updated the firmware documentation to reflect the current architecture
+
+## Decisions
+
+- Keep the BME280 implementation encapsulated inside its dedicated driver.
+- Preserve the `sensor` component as the hardware abstraction layer.
+- Maintain a clear separation between hardware drivers, telemetry generation and communication.
+- Reuse the shared I²C bus component for device management.
+
+## Takeaway
+
+The firmware now acquires real environmental data through a dedicated hardware driver while preserving a clean and extensible architecture. The complete telemetry pipeline is now fully operational, from physical sensor acquisition to MQTT publication.
+
 ## Next Sprint
 
-- Integrate the BME280 driver
-- Replace simulated sensor values with real measurements
-- Generate real timestamps through SNTP synchronization
-- Extend the telemetry model with additional hardware data
+- Add timestamp SNTP
+- Add persistent configuration management
+- Introduce secure MQTT communication (TLS)
+- Improve telemetry robustness and error handling
+- Prepare the firmware for additional sensor integrations
