@@ -81,6 +81,9 @@ Goal: replace the simulator with a modular embedded firmware running on the ESP3
 - [x] Machine status provider
 - [x] System time provider
 - [x] First telemetry published from ESP32
+- [x] SNTP clock synchronization
+- [x] UTC ISO 8601 timestamps
+- [x] Telemetry publishing gated on valid system time
 
 ## Sensors
 
@@ -96,6 +99,13 @@ Goal: replace the simulator with a modular embedded firmware running on the ESP3
 
 - [ ] Replace Python simulator with ESP32
 - [ ] OTA updates (optional)
+
+## Reliability and Security
+
+- [x] Non-blocking recovery after initial SNTP timeout
+- [ ] Persistent configuration management
+- [ ] Secure MQTT communication (TLS)
+- [ ] Telemetry buffering during connectivity outages
 
 ---
 

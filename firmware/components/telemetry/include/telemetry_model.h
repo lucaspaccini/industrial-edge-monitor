@@ -1,8 +1,10 @@
 #pragma once
 
+#include "system_time.h"
+
 typedef struct
 {
-    char timestamp[32];
+    char timestamp[SYSTEM_TIME_TIMESTAMP_SIZE];
     float temperature;
     float humidity;
     char machine_status[16];

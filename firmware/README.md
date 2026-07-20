@@ -9,8 +9,9 @@ The firmware is responsible for:
 - Initializing the hardware platform.
 - Managing Wi-Fi connectivity.
 - Managing MQTT communication.
+- Synchronizing the system clock through SNTP.
 - Acquiring environmental telemetry from connected sensors.
-- Publishing telemetry in JSON format.
+- Publishing timestamped telemetry in JSON format only when the clock is valid.
 
 The firmware is **not** responsible for:
 
@@ -69,7 +70,7 @@ Each component has a well-defined responsibility.
 | bme280 | Bosch BME280 device driver |
 | i2c_bus | Shared I²C bus management |
 | machine_status | Machine state provider |
-| system_time | Timestamp generation |
+| system_time | SNTP lifecycle, clock validity and UTC ISO 8601 timestamp generation |
 | utils | Shared helper functions |
 
 ---
@@ -109,7 +110,9 @@ BME280 Driver
 Sensor Abstraction
       │
       ▼
-Telemetry
+Telemetry + UTC Timestamp
+      │
+      ├── clock invalid ──> publish skipped
       │
       ▼
 MQTT Client
@@ -119,6 +122,10 @@ MQTT Broker
 ```
 
 The firmware is responsible for the entire telemetry pipeline up to the MQTT broker. Data persistence, processing and visualization are handled by the backend services.
+
+The `system_time` component starts SNTP after Wi-Fi obtains an IP address. It waits for a configurable initial interval, but a timeout is non-fatal: SNTP remains active in the background and telemetry stays paused. When synchronization eventually succeeds, timestamp generation and publishing recover automatically without rebooting the device.
+
+Timestamps use UTC ISO 8601 format with second precision, for example `2026-07-20T14:35:42Z`.
 
 ---
 
@@ -222,6 +229,16 @@ Configuration files:
 - `sdkconfig.defaults`
 - `config/config.h`
 - `config/secrets.h` *(local, ignored by Git)*
+
+Project settings are available under `Industrial Edge Monitor` in `idf.py menuconfig`:
+
+| Setting | Default | Purpose |
+|---------|---------|---------|
+| `SNTP_SERVER` | `pool.ntp.org` | Hostname of the time server |
+| `SNTP_SYNC_TIMEOUT_MS` | `10000` | Maximum initial wait before boot continues |
+| `TELEMETRY_PUBLISH_PERIOD_MS` | `5000` | Interval between telemetry attempts |
+
+The SNTP timeout only limits the initial synchronous wait. It does not stop background synchronization and therefore cannot cause a boot loop.
 
 ---
 

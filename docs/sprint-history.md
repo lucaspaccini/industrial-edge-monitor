@@ -260,7 +260,44 @@ The firmware now acquires real environmental data through a dedicated hardware d
 
 ## Next Sprint
 
-- Add timestamp SNTP
+- Add persistent configuration management
+- Introduce secure MQTT communication (TLS)
+- Improve telemetry robustness and error handling
+- Prepare the firmware for additional sensor integrations
+
+---
+
+# Sprint 11 — Reliable System Time
+
+## Goal
+
+Provide trustworthy UTC timestamps through SNTP without making network time availability a boot dependency.
+
+## Completed
+
+- Replaced uptime-based placeholder timestamps with UTC ISO 8601 timestamps
+- Added the SNTP lifecycle to the dedicated `system_time` component
+- Added configurable SNTP server and initial synchronization timeout settings through Kconfig
+- Prevented telemetry acquisition and publication while the system clock is invalid
+- Kept SNTP synchronization active after the initial timeout
+- Added automatic telemetry recovery when a later background synchronization succeeds
+- Preserved normal boot and MQTT connectivity when the initial SNTP request times out
+- Updated the firmware architecture and configuration documentation
+
+## Decisions
+
+- Keep time synchronization, validity state and formatting inside `system_time`.
+- Start SNTP only after Wi-Fi connectivity is established.
+- Treat the initial synchronization timeout as a recoverable condition rather than a fatal startup error.
+- Gate telemetry at the scheduler boundary so invalid samples are neither acquired nor serialized.
+- Emit timestamps in UTC using the unambiguous `YYYY-MM-DDTHH:MM:SSZ` representation.
+
+## Takeaway
+
+Telemetry now carries production-compatible timestamps and cannot contaminate the backend with invalid device time. Temporary SNTP unavailability degrades the device safely: connectivity remains active, synchronization continues in the background and publishing resumes automatically when the clock becomes valid.
+
+## Next Sprint
+
 - Add persistent configuration management
 - Introduce secure MQTT communication (TLS)
 - Improve telemetry robustness and error handling

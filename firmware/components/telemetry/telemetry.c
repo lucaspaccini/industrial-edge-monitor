@@ -5,6 +5,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "mqtt_client_app.h"
+#include "system_time.h"
 #include "telemetry_json.h"
 #include "telemetry_model.h"
 
@@ -17,6 +18,15 @@ static void telemetry_task(void *parameters)
     char payload[256];
 
     while (true) {
+        if (!system_time_is_valid()) {
+            ESP_LOGW(
+                TAG,
+                "System clock not synchronized, skipping telemetry publish"
+            );
+            vTaskDelay(pdMS_TO_TICKS(CONFIG_TELEMETRY_PUBLISH_PERIOD_MS));
+            continue;
+        }
+
         telemetry_t telemetry;
 
         telemetry_model_create(&telemetry);

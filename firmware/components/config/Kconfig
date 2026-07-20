@@ -37,6 +37,19 @@ config MQTT_QOS
 
 endmenu
 
+menu "System Time Configuration"
+
+config SNTP_SERVER
+    string "SNTP server"
+    default "pool.ntp.org"
+
+config SNTP_SYNC_TIMEOUT_MS
+    int "Initial SNTP synchronization timeout (ms)"
+    default 10000
+    range 1000 60000
+
+endmenu
+
 menu "Telemetry Configuration"
 
 config TELEMETRY_PUBLISH_PERIOD_MS
