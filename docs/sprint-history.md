@@ -300,5 +300,59 @@ Telemetry now carries production-compatible timestamps and cannot contaminate th
 
 - Add persistent configuration management
 - Introduce secure MQTT communication (TLS)
-- Improve telemetry robustness and error handling
+- Prepare the firmware for additional sensor integrations
+
+---
+
+# Sprint 12 — Device Health, Machine Status and Reliable Telemetry
+
+## Goal
+
+Make telemetry fail closed, expose internal device health independently from machine state, and extend the complete platform to multiple device identities.
+
+## Completed
+
+- Changed `telemetry_model_create()` to return `esp_err_t`
+- Made model creation transactional so output is written only for complete samples
+- Rejected failed sensor reads, non-finite measurements and values outside the BME280 operating ranges
+- Rejected samples with invalid UTC timestamps while allowing unavailable machine status as `unknown`
+- Removed fallback zero measurements and `unknown` timestamps
+- Prevented serialization and publication of rejected samples
+- Changed `mqtt_publish_telemetry()` to report invalid arguments, disconnected state and client publish failures
+- Added in-memory counters for accepted samples, rejected samples, accepted publishes and failed or skipped publishes
+- Added a thread-safe, static `device_health` snapshot with stable component states, error codes, counters and metrics
+- Kept infrastructure components independent from diagnostics; application orchestrators translate their results into health updates
+- Added configurable disabled/GPIO machine-status providers with independent active-level and pull settings
+- Added retained health heartbeats, retained availability and an MQTT Last Will on per-device topics
+- Allowed health publication with `timestamp: null` while SNTP is unavailable
+- Added stable application `device_id`, distinct from the MQTT client ID
+- Added an idempotent SQLite migration assigning historical records to `legacy-device`
+- Added validated collector routing with topic/payload identity checks and legacy topic support
+- Added current health persistence, effective availability and device-filtered telemetry APIs
+- Added a dashboard selector governing telemetry, charts, statistics and health together
+- Added backend validation and migration tests plus firmware/frontend production builds
+- Separated clock, acquisition, validation, serialization, MQTT disconnection and publication errors in logs
+- Removed the circular dependency between telemetry orchestration and MQTT transport
+- Preserved automatic recovery on later scheduler cycles after sensor or MQTT faults
+
+## Decisions
+
+- Keep BME280 communication and compensation inside the driver and expose physical measurement limits through the sensor abstraction contract.
+- Keep complete-sample validation in `telemetry_model` and write the caller output only after all validation succeeds.
+- Change `state_revision` only for component/general/error state transitions; counters and metrics travel on the periodic heartbeat and never trigger a publish loop.
+- Treat a disabled machine-status provider as unconfigured (`unknown`), not degraded; only a GPIO provider error degrades health.
+- Compute effective availability as retained reported availability `online` plus a fresh `last_seen`; retained `offline` wins immediately.
+- Store only the latest health snapshot per device, with extensible JSON sections validated before persistence.
+- Count MQTT publication as accepted when ESP-MQTT returns a valid message identifier; broker acknowledgement is not implied.
+- Let the periodic scheduler provide bounded retries instead of introducing immediate retry loops.
+- Start telemetry from `app_main` so MQTT remains a transport-only component.
+
+## Takeaway
+
+The platform now separates environmental telemetry, external machine state, internal device health and MQTT availability. It remains operational through clock, sensor and broker faults, attributes every record to a device and presents one coherent selected-device view end to end.
+
+## Next Sprint
+
+- Add persistent configuration management
+- Introduce secure MQTT communication (TLS)
 - Prepare the firmware for additional sensor integrations

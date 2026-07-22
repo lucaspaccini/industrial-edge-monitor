@@ -2,6 +2,11 @@
 
 #include "esp_err.h"
 
+#define SENSOR_TEMPERATURE_MIN_C    (-40.0f)
+#define SENSOR_TEMPERATURE_MAX_C    85.0f
+#define SENSOR_HUMIDITY_MIN_PERCENT 0.0f
+#define SENSOR_HUMIDITY_MAX_PERCENT 100.0f
+
 typedef struct
 {
     float temperature;  /**< Celsius */

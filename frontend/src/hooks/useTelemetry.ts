@@ -12,7 +12,7 @@ interface UseTelemetryResult {
     error: string | null;
 }
 
-export function useTelemetry(refreshIntervalMs = 2000): UseTelemetryResult {
+export function useTelemetry(deviceId: string | null, refreshIntervalMs = 2000): UseTelemetryResult {
     const [telemetry, setTelemetry] = useState<Telemetry[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -21,8 +21,9 @@ export function useTelemetry(refreshIntervalMs = 2000): UseTelemetryResult {
         let isMounted = true;
 
         async function fetchTelemetry() {
+            if (!deviceId) return;
             try {
-                const data = await getTelemetry();
+                const data = await getTelemetry(deviceId);
 
                 if (!isMounted) {
                     return;
@@ -47,6 +48,7 @@ export function useTelemetry(refreshIntervalMs = 2000): UseTelemetryResult {
             }
         }
 
+        if (!deviceId) return;
         fetchTelemetry();
 
         const intervalId = window.setInterval(
@@ -58,11 +60,14 @@ export function useTelemetry(refreshIntervalMs = 2000): UseTelemetryResult {
             isMounted = false;
             window.clearInterval(intervalId);
         };
-    }, [refreshIntervalMs]);
+    }, [deviceId, refreshIntervalMs]);
 
+    const selectedTelemetry = deviceId
+        ? telemetry.filter((sample) => sample.device_id === deviceId)
+        : [];
     return {
-        telemetry,
-        latestTelemetry: telemetry[0] ?? null,
+        telemetry: selectedTelemetry,
+        latestTelemetry: selectedTelemetry[0] ?? null,
         loading,
         error,
     };

@@ -3,7 +3,7 @@
 
 ## Overview
 
-The frontend is built with **Next.js 15** and provides a modern real-time dashboard for monitoring industrial telemetry.
+The frontend is built with **Next.js 16** and provides a real-time dashboard for device-scoped industrial telemetry and health.
 
 It consumes the REST API exposed by the FastAPI backend and displays live telemetry data stored in the SQLite database.
 
@@ -13,7 +13,7 @@ It consumes the REST API exposed by the FastAPI backend and displays live teleme
 
 | Technology   | Purpose                         |
 | ------------ | ------------------------------- |
-| Next.js 15   | React framework with App Router |
+| Next.js 16   | React framework with App Router |
 | React 19     | User interface library          |
 | TypeScript   | Static typing                   |
 | Tailwind CSS | Utility-first CSS framework     |
@@ -91,13 +91,17 @@ Current dashboard features:
 * Machine status card
 * Timestamp card
 * Temperature history chart
+* Telemetry statistics
+* Shared device selector
+* Effective online/offline availability
+* Data-driven component health, counters and metrics
 
 Future improvements:
 
 * Humidity history chart
 * Multi-series telemetry chart
-* Connection status indicators
-* Alarm visualization
+* Rich diagnostic labels and units
+* Alarm visualization and acknowledgement workflow
 * Historical analysis page
 
 ---

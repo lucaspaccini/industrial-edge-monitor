@@ -30,6 +30,14 @@ config MQTT_CLIENT_ID
     string "MQTT Client ID"
     default "industrial-edge-monitor"
 
+config DEVICE_ID
+    string "Application device ID"
+    default "edge-node-01"
+
+config MQTT_TOPIC_PREFIX
+    string "Per-device MQTT topic prefix"
+    default "industrial/devices"
+
 config MQTT_QOS
     int "MQTT QoS"
     default 1
@@ -55,6 +63,17 @@ menu "Telemetry Configuration"
 config TELEMETRY_PUBLISH_PERIOD_MS
     int "Telemetry publish period (ms)"
     default 5000
+    range 1000 3600000
+
+config DEVICE_HEALTH_PUBLISH_PERIOD_MS
+    int "Device health heartbeat period (ms)"
+    default 60000
+    range 10000 3600000
+
+config DEVICE_HEALTH_STATE_POLL_PERIOD_MS
+    int "Device health state poll period (ms)"
+    default 1000
+    range 250 10000
 
 endmenu
 
@@ -79,5 +98,57 @@ config BME280_I2C_ADDRESS
     hex "BME280 I2C address"
     default 0x76
     range 0x76 0x77
+
+endmenu
+
+menu "Machine Status Configuration"
+
+choice MACHINE_STATUS_PROVIDER
+    prompt "Machine status provider"
+    default MACHINE_STATUS_PROVIDER_DISABLED
+
+config MACHINE_STATUS_PROVIDER_DISABLED
+    bool "Disabled"
+
+config MACHINE_STATUS_PROVIDER_GPIO
+    bool "GPIO"
+
+endchoice
+
+if MACHINE_STATUS_PROVIDER_GPIO
+
+config MACHINE_STATUS_GPIO
+    int "Machine status input GPIO"
+    default 27
+    range 0 39
+
+choice MACHINE_STATUS_ACTIVE_LEVEL
+    prompt "Active level"
+    default MACHINE_STATUS_ACTIVE_HIGH
+
+config MACHINE_STATUS_ACTIVE_HIGH
+    bool "Active high"
+
+config MACHINE_STATUS_ACTIVE_LOW
+    bool "Active low"
+
+endchoice
+
+choice MACHINE_STATUS_PULL_MODE
+    prompt "Internal pull resistor"
+    default MACHINE_STATUS_PULL_NONE
+
+config MACHINE_STATUS_PULL_NONE
+    bool "None"
+
+config MACHINE_STATUS_PULL_UP
+    bool "Pull-up"
+
+config MACHINE_STATUS_PULL_DOWN
+    bool "Pull-down"
+
+endchoice
+
+endif
 
 endmenu

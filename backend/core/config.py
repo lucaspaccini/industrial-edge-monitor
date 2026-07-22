@@ -22,6 +22,9 @@ class Settings(BaseSettings):
     MQTT_HOST: str = "localhost"
     MQTT_PORT: int = 1883
     MQTT_TOPIC: str = "industrial/telemetry"
+    MQTT_TOPIC_PREFIX: str = "industrial/devices"
+    LEGACY_DEVICE_ID: str = "legacy-device"
+    DEVICE_OFFLINE_TIMEOUT_SECONDS: int = 150
 
     # CORS
     CORS_ORIGINS: str = "http://localhost:3000,http://127.0.0.1:3000"

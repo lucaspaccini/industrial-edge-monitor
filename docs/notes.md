@@ -6,6 +6,8 @@
 - http://127.0.0.1:8000/health
 - http://127.0.0.1:8000/telemetry/
 - http://127.0.0.1:8000/telemetry/latest
+- http://127.0.0.1:8000/devices/
+- http://127.0.0.1:8000/devices/edge-node-01/health
 
 ## COLLECTOR
 - source .venv/bin/activate

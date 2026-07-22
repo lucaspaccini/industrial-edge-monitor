@@ -10,4 +10,5 @@ idf_component_register(
         sensor
         machine_status
         system_time
+        device_health
 )

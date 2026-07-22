@@ -1,47 +1,110 @@
 import json
-import sqlite3
-import paho.mqtt.client as mqtt
+from datetime import datetime, timezone
 
+import paho.mqtt.client as mqtt
+from pydantic import ValidationError
+
+from backend.collector.schemas import (
+    AvailabilityMessage,
+    HealthMessage,
+    TelemetryMessage,
+)
 from backend.core.config import settings
-from backend.services.telemetry_service import telemetry_service
 from backend.core.logging import configure_logging, get_logger
 from backend.database.init_db import initialize_database
+from backend.repositories import device_repository
+from backend.services.telemetry_service import telemetry_service
+
 
 configure_logging()
 logger = get_logger(__name__)
 
-initialize_database();
 
-def on_connect(client, userdata, flags, rc):
-    logger.info("Connected with result code: %d", rc)
-    client.subscribe(settings.MQTT_TOPIC)
-    logger.info("Subscribed to: %s", settings.MQTT_TOPIC)
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def _route_topic(topic: str) -> tuple[str, str] | None:
+    if topic == settings.MQTT_TOPIC:
+        return settings.LEGACY_DEVICE_ID, "telemetry"
+    prefix = settings.MQTT_TOPIC_PREFIX.strip("/") + "/"
+    if not topic.startswith(prefix):
+        return None
+    suffix = topic[len(prefix):].split("/")
+    if len(suffix) != 2 or suffix[1] not in {"telemetry", "health", "availability"}:
+        return None
+    return suffix[0], suffix[1]
+
+
+def process_message(topic: str, raw_payload: bytes) -> None:
+    route = _route_topic(topic)
+    if route is None:
+        raise ValueError(f"unsupported topic: {topic}")
+    topic_device_id, message_type = route
+    payload = json.loads(raw_payload.decode("utf-8"))
+    received_at = _now()
+
+    if topic == settings.MQTT_TOPIC:
+        payload["device_id"] = settings.LEGACY_DEVICE_ID
+
+    payload_device_id = payload.get("device_id")
+    if payload_device_id != topic_device_id:
+        logger.warning(
+            "Rejected device identity mismatch topic_device_id=%s payload_device_id=%s",
+            topic_device_id,
+            payload_device_id,
+        )
+        raise ValueError("topic and payload device_id do not match")
+
+    if message_type == "telemetry":
+        message = TelemetryMessage.model_validate(payload)
+        stored = message.model_dump(mode="json")
+        telemetry_service.save_telemetry(stored)
+        device_repository.mark_seen(
+            topic_device_id,
+            received_at,
+            assume_online=topic == settings.MQTT_TOPIC,
+        )
+    elif message_type == "health":
+        message = HealthMessage.model_validate(payload)
+        device_repository.upsert_health(
+            topic_device_id, message.model_dump(mode="json"), received_at
+        )
+    else:
+        message = AvailabilityMessage.model_validate(payload)
+        device_repository.set_availability(
+            topic_device_id, message.status, received_at
+        )
+
+
+def on_connect(client, userdata, flags, reason_code, properties):
+    logger.info("Connected with result code: %s", reason_code)
+    topics = [
+        (settings.MQTT_TOPIC, 0),
+        (settings.MQTT_TOPIC_PREFIX.strip("/") + "/+/telemetry", 0),
+        (settings.MQTT_TOPIC_PREFIX.strip("/") + "/+/health", 0),
+        (settings.MQTT_TOPIC_PREFIX.strip("/") + "/+/availability", 0),
+    ]
+    client.subscribe(topics)
+    logger.info("Subscribed to legacy and per-device topics")
+
 
 def on_message(client, userdata, msg):
     try:
-        payload = json.loads(msg.payload.decode())
+        process_message(msg.topic, msg.payload)
+    except (ValueError, json.JSONDecodeError, UnicodeDecodeError, ValidationError):
+        logger.exception("Rejected invalid MQTT message topic=%s", msg.topic)
+    except Exception:
+        logger.exception("Failed to process MQTT message topic=%s", msg.topic)
 
-        telemetry_service.save_telemetry(payload)
-
-        logger.info("Telemetry saved successfully: %s", payload)
-
-    except Exception as exc:
-        logger.exception("Failed to process telemetry message")
 
 def main():
+    initialize_database()
     logger.info("Subscriber started")
-
-    client = mqtt.Client()
+    client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
     client.on_connect = on_connect
     client.on_message = on_message
-
-    client.connect(
-        settings.MQTT_HOST,
-        settings.MQTT_PORT,
-        60,
-    )
-
-    logger.info("MQTT subscriber started...")
+    client.connect(settings.MQTT_HOST, settings.MQTT_PORT, 60)
     client.loop_forever()
 
 

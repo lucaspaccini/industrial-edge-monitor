@@ -21,7 +21,7 @@ while True:
             "timestamp": datetime.utcnow().isoformat(),
             "temperature": round(random.uniform(20,35), 1),
             "humidity": round(random.uniform(40,70), 1),
-            "machine_status": random.choice(["running", "idle", "alarm"])
+            "machine_status": random.choice(["running", "stopped", "unknown"])
             }
 
     client.publish(
@@ -31,4 +31,3 @@ while True:
 
     logger.info("Publishing telemetry: %s", payload)
     time.sleep(2)
-

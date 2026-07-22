@@ -11,9 +11,10 @@ class TelemetryService:
     def get_telemetry_history(
         self,
         limit: int = settings.DEFAULT_HISTORY_LIMIT,
+        device_id: str | None = None,
     ):
         try:
-            return self.repository.fetch_telemetry_history(limit=limit)
+            return self.repository.fetch_telemetry_history(limit=limit, device_id=device_id)
 
         except Exception as exc:
             raise HTTPException(
@@ -21,9 +22,9 @@ class TelemetryService:
                 detail="Failed to read telemetry history",
             ) from exc
 
-    def get_latest_telemetry(self):
+    def get_latest_telemetry(self, device_id: str | None = None):
         try:
-            telemetry = self.repository.fetch_latest_telemetry()
+            telemetry = self.repository.fetch_latest_telemetry(device_id=device_id)
 
             if telemetry is None:
                 raise HTTPException(
@@ -45,9 +46,9 @@ class TelemetryService:
     def save_telemetry(self, payload: dict) -> None:
         self.repository.insert_telemetry(payload)
     
-    def get_statistics(self):
+    def get_statistics(self, device_id: str | None = None):
         try:
-            statistics = self.repository.fetch_telemetry_statistics()
+            statistics = self.repository.fetch_telemetry_statistics(device_id=device_id)
 
             if statistics is None:
                 return {

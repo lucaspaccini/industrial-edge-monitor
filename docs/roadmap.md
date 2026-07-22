@@ -103,21 +103,31 @@ Goal: replace the simulator with a modular embedded firmware running on the ESP3
 ## Reliability and Security
 
 - [x] Non-blocking recovery after initial SNTP timeout
+- [x] End-to-end telemetry error propagation
+- [x] Sensor measurement validation
+- [x] Invalid and incomplete sample rejection
+- [x] In-memory telemetry diagnostics
+- [x] Automatic recovery after temporary sensor and MQTT failures
+- [x] Device health snapshots with stable diagnostic codes
+- [x] MQTT availability with retained online state and Last Will
+- [x] Per-device identity, topics and telemetry persistence
+- [x] Configurable disabled/GPIO machine status provider
 - [ ] Persistent configuration management
 - [ ] Secure MQTT communication (TLS)
 - [ ] Telemetry buffering during connectivity outages
 
 ---
 
-# Phase 4 — Industrial Dashboard
+# Phase 4 — Industrial Dashboard 🚧
 
 Goal: create a production-like monitoring interface.
 
 - [ ] Dashboard layout redesign
 - [ ] History page
 - [ ] Multiple charts
-- [ ] Device status
-- [ ] System health dashboard
+- [x] Shared device selector for telemetry, statistics and health
+- [x] Current device health and effective availability
+- [ ] Rich diagnostic labels, units and visual prioritization
 - [ ] Industrial KPI cards
 - [ ] Responsive layout improvements
 

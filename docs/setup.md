@@ -38,6 +38,8 @@ python backend/simulator/publisher.py
 python backend/collector/subscriber.py
 ```
 
+The collector subscribes to the legacy topic and to all per-device telemetry, health and availability topics. Database initialization performs migrations in place; do not delete `data/telemetry.db`.
+
 ## Run the REST API
 
 ```bash

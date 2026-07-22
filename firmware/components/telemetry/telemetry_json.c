@@ -16,11 +16,13 @@ int telemetry_to_json(
         buffer,
         buffer_size,
         "{"
+        "\"device_id\":\"%s\","
         "\"timestamp\":\"%s\","
         "\"temperature\":%.2f,"
         "\"humidity\":%.2f,"
         "\"machine_status\":\"%s\""
         "}",
+        telemetry->device_id,
         telemetry->timestamp,
         telemetry->temperature,
         telemetry->humidity,

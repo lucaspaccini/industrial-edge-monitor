@@ -1,11 +1,13 @@
 #include "sensor.h"
 
 #include <stddef.h>
+#include <stdbool.h>
 
 #include "bme280.h"
 #include "esp_log.h"
 
 static const char *TAG = "sensor";
+static bool initialized = false;
 
 esp_err_t sensor_init(void)
 {
@@ -22,6 +24,7 @@ esp_err_t sensor_init(void)
     }
 
     ESP_LOGI(TAG, "Sensor component initialized with BME280 provider");
+    initialized = true;
 
     return ESP_OK;
 }
@@ -30,6 +33,14 @@ esp_err_t sensor_read(sensor_data_t *data)
 {
     if (data == NULL) {
         return ESP_ERR_INVALID_ARG;
+    }
+
+    if (!initialized) {
+        esp_err_t init_result = sensor_init();
+
+        if (init_result != ESP_OK) {
+            return init_result;
+        }
     }
 
     bme280_measurement_t measurement;

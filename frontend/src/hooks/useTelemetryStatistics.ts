@@ -12,25 +12,29 @@ interface UseTelemetryStatisticsResult {
 }
 
 export function useTelemetryStatistics(
+    deviceId: string | null,
     refreshIntervalMs = 5000
 ): UseTelemetryStatisticsResult {
     const [statistics, setStatistics] =
         useState<TelemetryStatistics | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [statisticsDeviceId, setStatisticsDeviceId] = useState<string | null>(null);
 
     useEffect(() => {
         let isMounted = true;
 
         async function fetchStatistics() {
+            if (!deviceId) return;
             try {
-                const data = await getTelemetryStatistics();
+                const data = await getTelemetryStatistics(deviceId);
 
                 if (!isMounted) {
                     return;
                 }
 
                 setStatistics(data);
+                setStatisticsDeviceId(deviceId);
                 setError(null);
             } catch (err) {
                 if (!isMounted) {
@@ -49,6 +53,7 @@ export function useTelemetryStatistics(
             }
         }
 
+        if (!deviceId) return;
         fetchStatistics();
 
         const intervalId = window.setInterval(
@@ -60,10 +65,10 @@ export function useTelemetryStatistics(
             isMounted = false;
             window.clearInterval(intervalId);
         };
-    }, [refreshIntervalMs]);
+    }, [deviceId, refreshIntervalMs]);
 
     return {
-        statistics,
+        statistics: statisticsDeviceId === deviceId ? statistics : null,
         loading,
         error,
     };

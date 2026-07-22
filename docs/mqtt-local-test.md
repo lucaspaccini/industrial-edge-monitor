@@ -1,22 +1,19 @@
-# MQTT Local TEst
+# MQTT topics and local test
 
-## Goal
+For device `edge-node-01`:
 
-Verity that the local Mosquitto MQTT broker is running correctly on Ubuntu.
+- `industrial/devices/edge-node-01/telemetry` — non-retained valid environmental samples;
+- `industrial/devices/edge-node-01/health` — retained current health, on state changes, heartbeat and reconnect;
+- `industrial/devices/edge-node-01/availability` — retained online state and retained offline Last Will.
 
-## Subscriber
+The legacy collector subscription `industrial/telemetry` remains supported and assigns `legacy-device`.
 
-```bash
-mosquitto_sub -h localhost -t test/topic
-```
-
-## Publisher
+Inspect all flows:
 
 ```bash
-mosquitto_pub -h localhost -t test/topic -m "hello mqtt"
+mosquitto_sub -h localhost -v -t 'industrial/devices/#' -t 'industrial/telemetry'
 ```
 
-## Expected result
+Availability messages contain `schema_version`, `device_id` and `status` (`online` or `offline`). The Last Will deliberately has no device timestamp. Health may contain `"timestamp": null` during SNTP failure; the collector adds `received_at`.
 
-The subscriber receives: hello mqtt
-
+Publishing a payload whose `device_id` differs from the device segment in its topic is rejected and logged by the collector.
