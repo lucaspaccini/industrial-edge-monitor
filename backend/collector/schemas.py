@@ -1,11 +1,28 @@
 from datetime import datetime
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 DeviceId = str
 MachineStatus = Literal["running", "stopped", "unknown"]
+DiagnosticErrorCode = Literal[
+    "none",
+    "not_initialized",
+    "communication_failed",
+    "read_failed",
+    "value_not_finite",
+    "temperature_out_of_range",
+    "humidity_out_of_range",
+    "time_not_synchronized",
+    "mqtt_disconnected",
+    "publish_failed",
+    "machine_status_unavailable",
+]
+StrictNonNegativeInt = Annotated[int, Field(strict=True, ge=0)]
+StrictFiniteInt = Annotated[int, Field(strict=True)]
+StrictFiniteFloat = Annotated[float, Field(strict=True, allow_inf_nan=False)]
+MetricValue = StrictFiniteInt | StrictFiniteFloat | None
 
 
 class TelemetryMessage(BaseModel):
@@ -31,7 +48,7 @@ class ComponentHealthMessage(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     status: Literal["healthy", "degraded", "fault", "unknown"]
-    error_code: str | None
+    error_code: DiagnosticErrorCode
     updated_at: datetime | None
 
 
@@ -44,8 +61,8 @@ class HealthMessage(BaseModel):
     status: Literal["healthy", "degraded"]
     availability: Literal["online", "offline"]
     components: dict[str, ComponentHealthMessage]
-    counters: dict[str, int]
-    metrics: dict[str, float | int | None]
+    counters: dict[str, StrictNonNegativeInt]
+    metrics: dict[str, MetricValue]
 
     _valid_device_id = field_validator("device_id")(TelemetryMessage.valid_device_id.__func__)
 

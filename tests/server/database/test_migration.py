@@ -5,7 +5,8 @@ from backend.database.init_db import initialize_database
 
 
 def test_existing_telemetry_is_migrated_idempotently(tmp_path, monkeypatch):
-    database = tmp_path / "legacy.db"
+    database = tmp_path / "legacy" / "legacy.db"
+    database.parent.mkdir()
     with sqlite3.connect(database) as conn:
         conn.execute(
             "CREATE TABLE telemetry(id INTEGER PRIMARY KEY, timestamp TEXT NOT NULL, "
@@ -28,3 +29,16 @@ def test_existing_telemetry_is_migrated_idempotently(tmp_path, monkeypatch):
         assert device == ("legacy-device", "offline")
         indexes = {row[1] for row in conn.execute("PRAGMA index_list(telemetry)")}
         assert "idx_telemetry_device_timestamp" in indexes
+
+
+def test_initialize_database_creates_missing_parent_directory(tmp_path, monkeypatch):
+    database = tmp_path / "missing" / "nested" / "telemetry.db"
+    monkeypatch.setattr(settings, "DATABASE_PATH", str(database))
+
+    initialize_database()
+
+    assert database.is_file()
+    with sqlite3.connect(database) as conn:
+        assert conn.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'telemetry'"
+        ).fetchone() == ("telemetry",)

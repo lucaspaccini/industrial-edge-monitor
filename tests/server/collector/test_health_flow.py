@@ -1,14 +1,10 @@
 import json
 
 from backend.collector.subscriber import process_message
-from backend.core.config import settings
-from backend.database.init_db import initialize_database
 from backend.services.device_service import device_service
 
 
-def test_health_is_persisted_with_received_at_and_null_device_time(tmp_path, monkeypatch):
-    monkeypatch.setattr(settings, "DATABASE_PATH", str(tmp_path / "health.db"))
-    initialize_database()
+def test_health_is_persisted_with_received_at_and_null_device_time(isolated_database):
     payload = {
         "schema_version": 1,
         "device_id": "edge-01",

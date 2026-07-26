@@ -222,6 +222,39 @@ static esp_err_t publish_health_snapshot(void)
     return mqtt_publish_health(payload);
 }
 
+static void record_health_publish_failure(void)
+{
+    char timestamp[SYSTEM_TIME_TIMESTAMP_SIZE];
+    const char *timestamp_value;
+    current_timestamp(timestamp, sizeof(timestamp), &timestamp_value);
+
+    device_health_increment_publish_failed();
+    device_health_update_component(
+        DEVICE_HEALTH_COMPONENT_MQTT,
+        DEVICE_HEALTH_COMPONENT_FAULT,
+        DEVICE_HEALTH_ERROR_PUBLISH_FAILED,
+        timestamp_value
+    );
+}
+
+static void record_health_publish_success(void)
+{
+    if (!mqtt_is_connected()) {
+        return;
+    }
+
+    char timestamp[SYSTEM_TIME_TIMESTAMP_SIZE];
+    const char *timestamp_value;
+    current_timestamp(timestamp, sizeof(timestamp), &timestamp_value);
+
+    device_health_update_component(
+        DEVICE_HEALTH_COMPONENT_MQTT,
+        DEVICE_HEALTH_COMPONENT_HEALTHY,
+        DEVICE_HEALTH_ERROR_NONE,
+        timestamp_value
+    );
+}
+
 static void health_task(void *parameters)
 {
     (void)parameters;
@@ -229,6 +262,7 @@ static void health_task(void *parameters)
     TickType_t last_heartbeat = 0;
     uint32_t last_attempted_revision = 0;
     uint32_t last_connection_generation = 0;
+    bool health_retry_pending = false;
 
     while (true) {
         update_runtime_components();
@@ -244,7 +278,11 @@ static void health_task(void *parameters)
             pdMS_TO_TICKS(CONFIG_DEVICE_HEALTH_PUBLISH_PERIOD_MS);
         bool state_changed = snapshot.state_revision != last_attempted_revision;
 
-        if (mqtt_is_connected() && (reconnected || heartbeat_due || state_changed)) {
+        if (mqtt_is_connected()
+            && (reconnected || heartbeat_due || state_changed || health_retry_pending)) {
+            bool retry_attempt = health_retry_pending;
+            health_retry_pending = false;
+
             if (reconnected) {
                 esp_err_t availability_result = publish_online_availability();
 
@@ -256,10 +294,25 @@ static void health_task(void *parameters)
             esp_err_t result = publish_health_snapshot();
 
             if (result != ESP_OK) {
+                record_health_publish_failure();
                 ESP_LOGE(TAG, "Failed to publish device health: %s", esp_err_to_name(result));
+
+                if (!retry_attempt && mqtt_is_connected()) {
+                    health_retry_pending = true;
+                }
+
+                device_health_snapshot_t failed_snapshot;
+
+                if (device_health_get_snapshot(&failed_snapshot) == ESP_OK) {
+                    last_attempted_revision = failed_snapshot.state_revision;
+                } else {
+                    last_attempted_revision = snapshot.state_revision;
+                }
+            } else {
+                record_health_publish_success();
+                last_attempted_revision = snapshot.state_revision;
             }
 
-            last_attempted_revision = snapshot.state_revision;
             last_heartbeat = now;
         }
 

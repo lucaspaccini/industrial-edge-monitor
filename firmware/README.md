@@ -166,7 +166,7 @@ The shared diagnostic snapshot owns cumulative RAM counters:
 - Publications accepted by the ESP-MQTT client.
 - Publications failed or skipped anywhere in the pipeline.
 
-They reset at boot and are sent in the periodic retained health heartbeat. Counters and metrics do not change `state_revision`, so a successful health publication cannot trigger another immediate health publication. An accepted publication means ESP-MQTT returned a valid message identifier; it does not represent an application-level acknowledgement from the broker or backend.
+They reset at boot and are sent in the periodic retained health heartbeat. `publish_failed` also includes a health publication request rejected by ESP-MQTT. Such a failure receives one non-blocking retry on the following health polling cycle; repeated failures wait for the next heartbeat or reconnection. Counters and metrics do not change `state_revision`, so they cannot trigger a health publication loop. An accepted publication means ESP-MQTT returned a valid message identifier; it does not represent an application-level acknowledgement from the broker or backend.
 
 Health uses `healthy`/`degraded`; component health uses `healthy`, `degraded`, `fault`, or `unknown`; availability uses `online`/`offline`. These enums are separate from machine status. Health remains publishable while SNTP is unavailable by emitting `"timestamp": null` and `time_not_synchronized`.
 

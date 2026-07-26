@@ -12,23 +12,36 @@ import TemperatureCard from "./TemperatureCard";
 import TelemetryChart from "../charts/TelemetryChart";
 import StatisticsCard from "./StatisticsCard";
 import DeviceHealthCard from "./DeviceHealthCard";
-import { useDevices } from "@/hooks/useDevices";
+import { useDeviceList } from "@/hooks/useDeviceList";
+import { useDeviceHealth } from "@/hooks/useDeviceHealth";
 import { useState } from "react";
 
 
 export default function Dashboard() {
     const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
-    const { devices } = useDevices(null);
+    const {
+        devices,
+        loading: devicesLoading,
+        error: deviceListError,
+    } = useDeviceList();
     const effectiveDeviceId = devices.some((device) => device.device_id === selectedDeviceId)
         ? selectedDeviceId : devices[0]?.device_id ?? null;
-    const { health, error: devicesError } = useDevices(effectiveDeviceId);
+    const { health, error: deviceHealthError } = useDeviceHealth(effectiveDeviceId);
     const { telemetry, latestTelemetry, loading, error } = useTelemetry(effectiveDeviceId);
     const {
         statistics,
         error: statisticsError,
     } = useTelemetryStatistics(effectiveDeviceId);
 
-    if (!effectiveDeviceId && devices.length === 0) {
+    if (devicesLoading) {
+        return <p>Loading devices...</p>;
+    }
+
+    if (deviceListError && devices.length === 0) {
+        return <p>Error loading devices: {deviceListError}</p>;
+    }
+
+    if (!effectiveDeviceId) {
         return <p>No devices available.</p>;
     }
 
@@ -51,8 +64,12 @@ export default function Dashboard() {
             </select>
         </div>
 
-        {(devicesError || statisticsError || error) &&
-            <p className="mb-4 text-amber-400">{devicesError ?? statisticsError ?? error}</p>}
+        {deviceListError &&
+            <p className="mb-4 text-amber-400">Device list: {deviceListError}</p>}
+        {deviceHealthError &&
+            <p className="mb-4 text-amber-400">Device health: {deviceHealthError}</p>}
+        {(statisticsError || error) &&
+            <p className="mb-4 text-amber-400">{statisticsError ?? error}</p>}
 
         {latestTelemetry ? <><div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
             <TemperatureCard temperature={latestTelemetry.temperature} />
