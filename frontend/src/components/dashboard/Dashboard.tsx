@@ -15,6 +15,7 @@ import DeviceHealthCard from "./DeviceHealthCard";
 import { useDeviceList } from "@/hooks/useDeviceList";
 import { useDeviceHealth } from "@/hooks/useDeviceHealth";
 import { useState } from "react";
+import AlertsPanel from "./AlertsPanel";
 
 
 export default function Dashboard() {
@@ -27,6 +28,9 @@ export default function Dashboard() {
     const effectiveDeviceId = devices.some((device) => device.device_id === selectedDeviceId)
         ? selectedDeviceId : devices[0]?.device_id ?? null;
     const { health, error: deviceHealthError } = useDeviceHealth(effectiveDeviceId);
+    const selectedDevice = devices.find(
+        (device) => device.device_id === effectiveDeviceId
+    );
     const { telemetry, latestTelemetry, loading, error } = useTelemetry(effectiveDeviceId);
     const {
         statistics,
@@ -91,6 +95,13 @@ export default function Dashboard() {
         )}
 
         <div className="mt-6"><DeviceHealthCard health={health} /></div>
+        <div className="mt-6">
+            <AlertsPanel
+                key={effectiveDeviceId}
+                deviceId={effectiveDeviceId}
+                offline={selectedDevice?.availability === "offline"}
+            />
+        </div>
     </main>
 );
 }

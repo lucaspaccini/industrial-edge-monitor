@@ -16,11 +16,12 @@ def sample_payload(timestamp: str = "2026-07-26T10:00:00Z") -> dict:
 
 
 def test_fetch_latest_telemetry_returns_data(isolated_database):
-    insert_telemetry(sample_payload())
+    telemetry_id = insert_telemetry(sample_payload())
 
     telemetry = fetch_latest_telemetry()
 
     assert telemetry is not None
+    assert telemetry_id == telemetry["id"]
     assert telemetry["device_id"] == "test-device"
     assert "temperature" in telemetry
     assert "humidity" in telemetry

@@ -14,6 +14,7 @@ from backend.core.logging import configure_logging, get_logger
 from backend.database.init_db import initialize_database
 from backend.repositories import device_repository
 from backend.services.telemetry_service import telemetry_service
+from backend.services.alert_engine import alert_engine
 
 
 configure_logging()
@@ -59,12 +60,30 @@ def process_message(topic: str, raw_payload: bytes) -> None:
     if message_type == "telemetry":
         message = TelemetryMessage.model_validate(payload)
         stored = message.model_dump(mode="json")
-        telemetry_service.save_telemetry(stored)
+        telemetry_id = telemetry_service.save_telemetry(stored)
+        stored["id"] = telemetry_id
+        logger.debug(
+            "Telemetry persisted telemetry_id=%s device_id=%s",
+            telemetry_id,
+            topic_device_id,
+        )
         device_repository.mark_seen(
             topic_device_id,
             received_at,
             assume_online=topic == settings.MQTT_TOPIC,
         )
+        try:
+            logger.debug(
+                "Starting alert evaluation telemetry_id=%s device_id=%s",
+                telemetry_id,
+                topic_device_id,
+            )
+            alert_engine.evaluate(stored)
+        except Exception:
+            logger.exception(
+                "Alert evaluation failed for telemetry_id=%s; telemetry remains persisted",
+                telemetry_id,
+            )
     elif message_type == "health":
         message = HealthMessage.model_validate(payload)
         device_repository.upsert_health(

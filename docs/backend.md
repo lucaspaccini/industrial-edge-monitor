@@ -12,6 +12,24 @@ Startup runs an idempotent migration before applying `schema.sql`:
 
 `telemetry` remains historical. `device_health_current` is an upserted snapshot, not a health event history. `devices` holds retained reported availability and `last_seen`.
 
+## Alert persistence
+
+The idempotent schema creates:
+
+- `alert_rules`: immutable identity plus current per-device configuration;
+- `alert_rule_states`: one persisted `normal`, `pending` or `active` runtime state per rule;
+- `alert_events`: historical `active`/`resolved` events with a snapshot of the rule configuration.
+
+A partial unique SQLite index permits at most one active event per rule. Indices cover device, rule, status, severity and event time. Existing telemetry, health and device rows are never rewritten or evaluated during migration.
+
+Rule and event mutations are atomic within the alert-engine transaction. The same telemetry ID is ignored twice. A timestamp older than or equal to `last_evaluated_at` is logged and ignored, so out-of-order samples cannot activate or resolve events.
+
+For `greater_than`, violation is `value > threshold` and recovery is `value <= threshold - hysteresis`. For `less_than`, violation is `value < threshold` and recovery is `value >= threshold + hysteresis`. Values inside the hysteresis band keep active events active.
+
+Disabling a rule resets pending state and resolves an active event with `rule_disabled`. Changes to metric, operator, threshold, duration or hysteresis reset runtime state and resolve an active event with `rule_updated`. Archiving sets `archived_at`, disables the rule, resets pending state and resolves an active event with `rule_archived`. Archived rules are excluded from evaluation and default listings, while their history remains available and their name can be reused.
+
+The collector is a long-running Python process without hot reload. It must be restarted after deploying backend code that changes telemetry processing. Structured transition logs include telemetry ID, device ID, rule ID, metric/value, previous/resulting state and outcome.
+
 The collector validates MQTT payloads with Pydantic before persistence. Per-device topics must carry the same `device_id`; mismatches are rejected and logged. The legacy `industrial/telemetry` topic is explicitly attributed to `legacy-device`.
 
 Omitting `device_id` on legacy REST telemetry endpoints still queries across all devices. The dashboard always supplies it so every panel uses one identity.

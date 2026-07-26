@@ -69,6 +69,7 @@ def insert_telemetry(payload: dict):
         )
 
         conn.commit()
+        return cursor.lastrowid
 
     finally:
         if conn is not None:

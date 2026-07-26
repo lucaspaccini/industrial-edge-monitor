@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from backend.api.routes.telemetry import router as telemetry_router
 from backend.api.routes.health import router as health_router
 from backend.api.routes.devices import router as devices_router
+from backend.api.routes.alerts import alerts_router, rules_router
 
 from backend.core.config import settings
 
@@ -31,6 +32,8 @@ app.add_middleware(
 app.include_router(telemetry_router)
 app.include_router(health_router)
 app.include_router(devices_router)
+app.include_router(rules_router)
+app.include_router(alerts_router)
 
 initialize_database()
 

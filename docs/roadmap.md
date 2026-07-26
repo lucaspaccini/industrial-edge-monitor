@@ -112,6 +112,10 @@ Goal: replace the simulator with a modular embedded firmware running on the ESP3
 - [x] MQTT availability with retained online state and Last Will
 - [x] Per-device identity, topics and telemetry persistence
 - [x] Configurable disabled/GPIO machine status provider
+- [x] Configurable per-device threshold alert rules
+- [x] Persistent pending/active rule state
+- [x] Persistent active/resolved alert lifecycle
+- [x] Dwell time, hysteresis and out-of-order sample protection
 - [ ] Persistent configuration management
 - [ ] Secure MQTT communication (TLS)
 - [ ] Telemetry buffering during connectivity outages
@@ -127,6 +131,8 @@ Goal: create a production-like monitoring interface.
 - [ ] Multiple charts
 - [x] Shared device selector for telemetry, statistics and health
 - [x] Current device health and effective availability
+- [x] Device-scoped alert rules, active alerts and event history
+- [x] Essential alert rule editor
 - [ ] Rich diagnostic labels, units and visual prioritization
 - [ ] Industrial KPI cards
 - [ ] Responsive layout improvements

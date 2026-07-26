@@ -7,9 +7,9 @@ ESP32 providers -> telemetry/device-health orchestrators -> MQTT transport
                                                                |
                                                         MQTT collector
                                                                |
-                                      SQLite telemetry + current health + devices
+                          SQLite telemetry + health + devices + alert state/events
                                                                |
-                                                        FastAPI services
+                                                 Alert engine + FastAPI services
                                                                |
                                                 selected-device dashboard
 ```
@@ -26,3 +26,7 @@ The four public domains are intentionally separate:
 SQLite stores telemetry history per device, a device registry, and only the current health snapshot. Extensible health sections remain validated JSON instead of becoming one database column per possible component or metric.
 
 The collector always records server-side `received_at` for health. This is authoritative when device `timestamp` is null. `last_seen` advances on validated health or telemetry as well as online availability. Effective availability is online only when the retained reported state is `online` and `last_seen` is newer than the configured timeout; an offline Last Will is immediate.
+
+After a valid telemetry row is committed, the collector passes its database ID and validated event timestamp to the backend alert engine. The engine has no MQTT, FastAPI or frontend dependency. It evaluates only enabled rules belonging to the sample device and commits each runtime transition together with its event mutation.
+
+Telemetry persistence and alert evaluation are intentionally separate transactions: an alert failure is logged but cannot discard valid telemetry. Evaluation is idempotent through the persisted telemetry ID and event time, making a later retry safe without adding an outbox in this sprint.

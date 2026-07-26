@@ -43,8 +43,8 @@ class TelemetryService:
                 detail="Failed to read latest telemetry data",
             ) from exc
 
-    def save_telemetry(self, payload: dict) -> None:
-        self.repository.insert_telemetry(payload)
+    def save_telemetry(self, payload: dict) -> int:
+        return self.repository.insert_telemetry(payload)
     
     def get_statistics(self, device_id: str | None = None):
         try:

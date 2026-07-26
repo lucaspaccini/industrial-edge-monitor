@@ -16,6 +16,7 @@ The project is developed both as a production-oriented embedded portfolio projec
 - Validated MQTT ingestion, SQLite persistence and in-place legacy migration.
 - FastAPI endpoints filtered by device.
 - Next.js dashboard with one selector controlling telemetry, history, statistics and health.
+- Configurable per-device threshold rules with dwell time, hysteresis and persistent alert events.
 
 ## Architecture
 
@@ -26,7 +27,7 @@ ESP32 + BME280/GPIO
    MQTT broker
         │
         ▼
-Python collector ──► SQLite ──► FastAPI ──► Next.js dashboard
+Python collector ──► SQLite ──► Alert engine ──► FastAPI ──► Next.js dashboard
 ```
 
 The firmware keeps environmental telemetry, external machine status, internal device health and MQTT availability as separate domains. Infrastructure components expose results upward; application orchestrators translate them into diagnostics.
@@ -123,4 +124,4 @@ tests/      Backend tests
 - [Roadmap](docs/roadmap.md)
 - [Sprint history](docs/sprint-history.md)
 
-Current milestone: **Sprint 12 — Device Health, Machine Status and Reliable Telemetry**. TLS, persistent device configuration, OTA, offline telemetry buffering and health-event history remain future work.
+Current milestone: **Sprint 13 — Configurable Alert Rules and Event Lifecycle**. External notifications, TLS, persistent device configuration, OTA and offline telemetry buffering remain future work.

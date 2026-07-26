@@ -3,6 +3,8 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from backend.core.validation import validate_device_id
+
 
 DeviceId = str
 MachineStatus = Literal["running", "stopped", "unknown"]
@@ -37,11 +39,7 @@ class TelemetryMessage(BaseModel):
     @field_validator("device_id")
     @classmethod
     def valid_device_id(cls, value: str) -> str:
-        if not value or len(value) > 63 or not all(
-            character.isalnum() or character in "._-" for character in value
-        ):
-            raise ValueError("invalid device_id")
-        return value
+        return validate_device_id(value)
 
 
 class ComponentHealthMessage(BaseModel):

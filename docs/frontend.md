@@ -95,6 +95,11 @@ Current dashboard features:
 * Shared device selector
 * Effective online/offline availability
 * Data-driven component health, counters and metrics
+* Active-alert count and panel
+* Recent alert-event history
+* Rule list with visible pending state
+* Essential create/edit/enable/disable rule form
+* Confirmed logical rule deletion with immediate list update
 
 Future improvements:
 
@@ -102,6 +107,7 @@ Future improvements:
 * Multi-series telemetry chart
 * Rich diagnostic labels and units
 * Alarm visualization and acknowledgement workflow
+* External notification delivery
 * Historical analysis page
 
 ---

@@ -40,6 +40,8 @@ python backend/collector/subscriber.py
 
 The collector subscribes to the legacy topic and to all per-device telemetry, health and availability topics. Database initialization performs migrations in place; do not delete `data/telemetry.db`.
 
+The collector does not hot-reload Python modules. Restart `python -m backend.collector.subscriber` after updating collector, telemetry-service or alert-engine code.
+
 ## Run the REST API
 
 ```bash

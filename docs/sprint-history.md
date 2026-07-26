@@ -356,3 +356,50 @@ The platform now separates environmental telemetry, external machine state, inte
 - Add persistent configuration management
 - Introduce secure MQTT communication (TLS)
 - Prepare the firmware for additional sensor integrations
+
+---
+
+# Sprint 13 — Configurable Alert Rules and Event Lifecycle
+
+## Goal
+
+Transform valid per-device telemetry into deterministic, persistent alert events through configurable thresholds, dwell time and hysteresis, without adding alert responsibilities to the firmware.
+
+## Completed
+
+- Added strict rule models for temperature and humidity with stable operators and severities
+- Added idempotent SQLite tables for rules, persisted runtime state and alert-event history
+- Added a partial unique index preventing multiple active events for one rule
+- Implemented pure threshold, recovery, hysteresis and extreme-value functions
+- Implemented the persisted `normal → pending → active` runtime state machine
+- Added active/resolved events with copied rule configuration and machine-readable resolution reasons
+- Added duration-zero immediate activation and dwell-time cancellation
+- Ignored duplicate, equal-time and out-of-order samples without generating events
+- Evaluated only enabled rules belonging to the telemetry device
+- Returned the inserted telemetry ID and integrated alert evaluation after telemetry persistence
+- Preserved valid telemetry when alert evaluation fails and made evaluation safe to retry
+- Added rule CRUD, active-alert and event-history APIs with filters and controlled limits
+- Added a device-scoped dashboard panel for active alerts, event history and rule management
+- Added logical rule archiving with preserved history, reusable names and `rule_archived` resolution
+- Added structured, transition-only alert evaluation logs
+- Added isolated validation, state-machine, reliability, collector, migration, service and API tests
+
+## Decisions
+
+- Keep the alert engine entirely in the backend and independent from MQTT, FastAPI and React.
+- Use validated telemetry time as event time; configuration updates use timezone-aware backend UTC time.
+- Ignore timestamps older than or equal to the persisted last evaluation time.
+- Keep rule state and event mutation in one SQLite transaction.
+- Commit telemetry before alert evaluation so an engine failure cannot discard a valid sample; defer outbox-based guaranteed delivery.
+- Reset runtime state on substantial rule updates and retain event history with `rule_updated` or `rule_disabled`.
+- Store no persistent `resolved` runtime state because resolution belongs to event history.
+
+## Takeaway
+
+Industrial Edge Monitor now turns telemetry into durable, actionable state without coupling alert logic to the edge device. Short violations are filtered, sustained conditions open one event, hysteresis stabilizes recovery, and runtime state survives backend restarts while remaining isolated per device.
+
+## Next Sprint
+
+- Add alert acknowledgements and operator workflow
+- Add external notification delivery only when a concrete channel is selected
+- Continue deployment and security hardening
