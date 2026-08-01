@@ -78,8 +78,7 @@ static void init_nvs(void)
 void wifi_init(void)
 {
     ESP_LOGI(TAG, "Initializing Wi-Fi");
-    ESP_LOGI(TAG, "SSID: %s", CONFIG_WIFI_SSID);
-    ESP_LOGI(TAG, "Password: %s", CONFIG_WIFI_PASSWORD);
+    ESP_LOGI(TAG, "Connecting to configured Wi-Fi network");
     ESP_LOGI(TAG, "Maximum retry attempts: %d", CONFIG_WIFI_MAXIMUM_RETRY);
 
     init_nvs();
@@ -145,9 +144,9 @@ void wifi_init(void)
     );
 
     if (bits & WIFI_CONNECTED_BIT) {
-        ESP_LOGI(TAG, "Connected to Wi-Fi SSID: %s", CONFIG_WIFI_SSID);
+        ESP_LOGI(TAG, "Connected to configured Wi-Fi network");
     } else if (bits & WIFI_FAIL_BIT) {
-        ESP_LOGE(TAG, "Failed to connect to Wi-Fi SSID: %s", CONFIG_WIFI_SSID);
+        ESP_LOGE(TAG, "Failed to connect to configured Wi-Fi network");
     } else {
         ESP_LOGE(TAG, "Unexpected Wi-Fi event");
     }

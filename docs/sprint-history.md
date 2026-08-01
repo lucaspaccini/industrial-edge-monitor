@@ -403,3 +403,66 @@ Industrial Edge Monitor now turns telemetry into durable, actionable state witho
 - Add alert acknowledgements and operator workflow
 - Add external notification delivery only when a concrete channel is selected
 - Continue deployment and security hardening
+
+---
+
+# Sprint 14 — Reproducible Deployment, Environment Configuration and Continuous Integration
+
+## Goal
+
+Make the complete single-host platform reproducibly buildable, configurable and verifiable from a clean checkout, without presenting the trusted-LAN deployment as production-secure.
+
+## Completed
+
+- Added a single-stage, non-root Python backend image reused by API and collector, plus a multi-stage, non-root Next.js standalone image
+- Added a four-service Compose stack for Mosquitto, collector, API and frontend with health-aware startup ordering
+- Shared one named SQLite volume between API and collector and kept retained Mosquitto data in a separate named volume
+- Added strict environment validation and documented the build-time nature of `NEXT_PUBLIC_API_URL`
+- Added graceful collector shutdown, SQLite WAL mode, a bounded busy timeout and automatic database-directory creation
+- Added a continuous integration workflow for backend, frontend, firmware and container verification. Equivalent checks passed locally; the GitHub Actions run after push is the final repository gate
+- Added an MQTT-to-SQLite-to-API container smoke test and exact-record persistence verification across API and collector recreation
+- Kept the standard `1883:1883` MQTT mapping and documented the conflict with an already-running native Mosquitto service
+- Updated Next.js to the latest stable compatible patch and separated build-only shadcn tooling from runtime dependencies
+- Inspected the final frontend image and documented the residual PostCSS and sharp advisories without hiding or force-fixing them
+
+## Decisions
+
+- Continuous integration workflow implementation is complete. Its first successful GitHub-hosted run after push remains the final repository gate; the workflow performs no deployment, and continuous delivery remains future work.
+- Environment configuration is not persistent device configuration.
+- `APP_ENV=production` selects stricter validation and runtime defaults; it is not evidence of production security.
+- The deployment target remains one host on a trusted LAN. TLS, authentication, hardened ingress, backup automation and multi-host storage remain out of scope.
+- `images.unoptimized` is retained because it makes `/_next/image` return `404` before the sharp-backed optimizer is invoked; it limits reachability but does not resolve or remove the sharp advisory.
+- No downgrade, forced audit fix, preview release or unsupported transitive override is used for residual npm findings.
+
+## Verification
+
+The following equivalent workflow checks were completed locally. They do not claim that a GitHub Actions run has already completed.
+
+- Backend: `pytest -q` — 88 passed
+- Frontend: `npm test` — 1 passed; lint and production build passed with Next.js 16.2.12
+- Dependency audit: `npm audit --omit=dev` — three high-severity package entries remain and are classified below
+- Firmware: ESP-IDF 6.0.2 build passed; application binary uses 89% of its partition
+- Containers: backend and frontend image builds passed; Mosquitto, API and frontend became healthy and the collector subscribed successfully
+- End to end: a legacy MQTT sample was persisted, returned by the API and retained with the same ID after API and collector recreation
+- Storage: API and collector mounted the same isolated SQLite volume read/write; smoke containers, network, volumes and temporary environment file were removed afterward
+- Configuration and workspace: `docker compose config --quiet` and `git diff --check` passed
+
+## Residual Risk
+
+- npm reports `next` as an aggregate affected node because Next.js 16.2.12 pins PostCSS 8.4.31 and allows sharp 0.34.x.
+- The three PostCSS advisories require processing attacker-controlled CSS. The project builds only repository-controlled CSS, and PostCSS is absent from the final standalone runtime image. They are classified as build-time only and not applicable to the current runtime.
+- Sharp 0.34.5 and libvips 8.17.3 remain in the standalone image through Next.js dependency tracing. The application does not use `next/image`, accept image uploads or configure external image sources, and its image optimizer endpoint is disabled. This remains tracked, temporarily accepted runtime risk for the non-public single-host scope, not a resolved finding.
+- No current stable Next.js version admits both fixed PostCSS and sharp versions without an unsupported override; reassess on the next compatible stable release.
+
+## Takeaway
+
+The repository now has a reproducible, CI-enabled and locally verified single-host deployment baseline. It is not yet a production-secure or multi-host deployment.
+
+## Future Work
+
+- TLS and broker/API authentication
+- Hardened ingress
+- Automated backup and restore
+- Multi-host storage and database design
+- Persistent device configuration
+- Continuous delivery

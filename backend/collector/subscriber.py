@@ -1,4 +1,5 @@
 import json
+import signal
 from datetime import datetime, timezone
 
 import paho.mqtt.client as mqtt
@@ -123,8 +124,20 @@ def main():
     client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
     client.on_connect = on_connect
     client.on_message = on_message
-    client.connect(settings.MQTT_HOST, settings.MQTT_PORT, 60)
+    client.connect(
+        settings.MQTT_HOST,
+        settings.MQTT_PORT,
+        settings.MQTT_KEEPALIVE_SECONDS,
+    )
+
+    def stop_client(signum, _frame):
+        logger.info("Stopping subscriber after signal=%s", signum)
+        client.disconnect()
+
+    signal.signal(signal.SIGINT, stop_client)
+    signal.signal(signal.SIGTERM, stop_client)
     client.loop_forever()
+    logger.info("Subscriber stopped")
 
 
 if __name__ == "__main__":

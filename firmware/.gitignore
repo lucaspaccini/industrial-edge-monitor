@@ -7,7 +7,6 @@ sdkconfig.old
 
 # Managed components
 managed_components/
-dependencies.lock
 
 # Local configuration
 main/config/secrets.h

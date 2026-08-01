@@ -1,5 +1,13 @@
 # Backend data model
 
+## Runtime configuration
+
+`backend.core.config.Settings` is the only backend configuration access point. It loads the root `.env` for traditional local development and normal process environment variables in containers and CI. `APP_ENV` accepts only `development`, `test` or `production`; connectivity defaults that point into the source tree or to `localhost` are rejected in production. Ports, limits, timeouts, MQTT topics/device identity and comma-separated HTTP(S) CORS origins are validated at startup.
+
+Logging uses the validated `LOG_LEVEL`. API and collector receive the same runtime settings in Compose, except for their process command. The complete environment matrix is in [setup](setup.md).
+
+The container runtime installs the exact production dependency closure in `requirements-runtime.txt`; `requirements.txt` additionally contains the pinned test toolchain used locally and in CI.
+
 ## SQLite migration
 
 Startup runs an idempotent migration before applying `schema.sql`:
@@ -11,6 +19,8 @@ Startup runs an idempotent migration before applying `schema.sql`:
 5. create `devices` and `device_health_current` without deleting or recreating existing data.
 
 `telemetry` remains historical. `device_health_current` is an upserted snapshot, not a health event history. `devices` holds retained reported availability and `last_seen`.
+
+Relative database paths are resolved from the repository root and missing parent directories are created. File-backed connections enable foreign keys, WAL and `synchronous=NORMAL`; a configurable SQLite connect/busy timeout handles short writer contention between API and collector. In Compose, the API completes migration before collector startup. This remains a single-host SQLite design, not a multi-replica or network-filesystem solution.
 
 ## Alert persistence
 

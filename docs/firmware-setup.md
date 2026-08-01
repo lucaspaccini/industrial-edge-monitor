@@ -134,6 +134,8 @@ Build the firmware:
 idf.py build
 ```
 
+The versioned `firmware/dependencies.lock` pins the ESP-MQTT managed component and records ESP-IDF 6.0.2/ESP32 resolution for reproducible local and CI builds. `managed_components/` remains generated and ignored.
+
 Expected result:
 
 ```text
@@ -207,6 +209,7 @@ idf.py -p /dev/ttyUSB0 monitor
 When upgrading ESP-IDF, update:
 
 - `firmware/toolchain.yml`
+- `firmware/dependencies.lock` through the ESP-IDF component manager
 - `firmware/README.md`
 - `docs/firmware-setup.md`
 

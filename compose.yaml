@@ -1,0 +1,137 @@
+name: industrial-edge-monitor
+
+x-backend: &backend
+  build:
+    context: .
+    dockerfile: Dockerfile
+  image: industrial-edge-monitor-backend:local
+  init: true
+  restart: unless-stopped
+  environment: &backend-environment
+    APP_ENV: production
+    LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    APP_NAME: ${APP_NAME:-Industrial Edge Monitor API}
+    APP_VERSION: ${APP_VERSION:-0.1.0}
+    APP_DESCRIPTION: ${APP_DESCRIPTION:-REST API for Industrial Edge Monitor}
+    DATABASE_PATH: /data/telemetry.db
+    DATABASE_TIMEOUT_SECONDS: ${DATABASE_TIMEOUT_SECONDS:-30}
+    DEFAULT_HISTORY_LIMIT: ${DEFAULT_HISTORY_LIMIT:-100}
+    MQTT_HOST: mqtt
+    MQTT_PORT: "1883"
+    MQTT_KEEPALIVE_SECONDS: ${MQTT_KEEPALIVE_SECONDS:-60}
+    MQTT_TOPIC: ${MQTT_TOPIC:-industrial/telemetry}
+    MQTT_TOPIC_PREFIX: ${MQTT_TOPIC_PREFIX:-industrial/devices}
+    LEGACY_DEVICE_ID: ${LEGACY_DEVICE_ID:-legacy-device}
+    DEVICE_OFFLINE_TIMEOUT_SECONDS: ${DEVICE_OFFLINE_TIMEOUT_SECONDS:-150}
+    CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
+  volumes:
+    - sqlite-data:/data
+  networks:
+    - edge
+  stop_grace_period: 15s
+
+services:
+  mqtt:
+    image: eclipse-mosquitto:2.1.2-alpine
+    restart: unless-stopped
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./docker/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - mqtt-data:/mosquitto/data
+    networks:
+      - edge
+    healthcheck:
+      test:
+        - CMD
+        - mosquitto_pub
+        - --host
+        - 127.0.0.1
+        - --port
+        - "1883"
+        - --topic
+        - industrial/healthcheck
+        - --message
+        - ready
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+    stop_grace_period: 15s
+
+  api:
+    <<: *backend
+    command:
+      - python
+      - -m
+      - uvicorn
+      - backend.api.main:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - >-
+          import urllib.request;
+          urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3).read()
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  collector:
+    <<: *backend
+    command:
+      - python
+      - -m
+      - backend.collector.subscriber
+    depends_on:
+      api:
+        condition: service_healthy
+      mqtt:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+    image: industrial-edge-monitor-frontend:local
+    init: true
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    networks:
+      - edge
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - >-
+          fetch('http://127.0.0.1:3000')
+          .then(response => { if (!response.ok) process.exit(1) })
+          .catch(() => process.exit(1))
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    stop_grace_period: 15s
+
+networks:
+  edge:
+    driver: bridge
+
+volumes:
+  sqlite-data:
+  mqtt-data:

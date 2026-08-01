@@ -51,14 +51,14 @@ firmware/
 │   ├── sensor/            # Hardware-independent sensor abstraction
 │   ├── system_time/       # Timestamp generation
 │   ├── telemetry/         # Telemetry acquisition and publishing
-│   ├── utils/             # Shared utilities
 │   └── wifi/              # Wi-Fi connectivity
 │
 ├── main/
-│   └── app_main.c
+│   ├── app_main.c
+│   └── idf_component.yml  # Managed-component manifest
 │
 ├── sdkconfig.defaults
-├── idf_component.yml
+├── dependencies.lock       # Reproducible managed-component resolution
 └── README.md
 ```
 
@@ -77,7 +77,6 @@ Each component has a well-defined responsibility.
 | i2c_bus | Shared I²C bus management |
 | machine_status | Machine state provider |
 | system_time | SNTP lifecycle, clock validity and UTC ISO 8601 timestamp generation |
-| utils | Shared helper functions |
 
 ---
 
@@ -208,6 +207,8 @@ The firmware toolchain is documented in:
 ```text
 firmware/toolchain.yml
 ```
+
+`dependencies.lock` is versioned so clean local and CI builds resolve the same ESP-MQTT component version. Regenerate it only through the ESP-IDF component manager after intentionally changing `main/idf_component.yml` or the ESP-IDF target/version.
 
 ## Requirements
 

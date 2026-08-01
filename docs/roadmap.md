@@ -139,21 +139,25 @@ Goal: create a production-like monitoring interface.
 
 ---
 
-# Phase 5 — Engineering Excellence
+# Phase 5 — Engineering Excellence 🚧
 
 Goal: improve reliability, maintainability and deployment.
 
-- [ ] Unit Tests
-- [ ] Integration Tests
-- [ ] Docker
-- [ ] Docker Compose
-- [ ] CI/CD
+- [x] Unit tests
+- [x] Integration tests
+- [x] Production-like Docker images
+- [x] Reproducible Docker Compose stack
+- [x] Continuous integration for backend, frontend, firmware and containers
+- [ ] Continuous deployment
 - [ ] Code Coverage
 - [ ] Pre-commit hooks
-- [ ] Linting
+- [x] Frontend linting
 - [ ] Type Checking
 - [ ] Raspberry Pi deployment
-- [ ] Production configuration
+- [x] Validated environment-specific backend configuration
+- [ ] Production security configuration (TLS, authentication and hardened ingress)
+- [ ] Automated backup and restore for persistent data
+- [ ] Multi-host storage and database architecture
 
 ---
 

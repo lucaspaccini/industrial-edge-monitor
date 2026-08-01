@@ -1,5 +1,9 @@
 import sqlite3
+from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier
 
+import backend.api.database as database_module
+from backend.api.database import get_connection
 from backend.core.config import settings
 from backend.database.init_db import initialize_database
 
@@ -54,6 +58,40 @@ def test_initialize_database_creates_missing_parent_directory(tmp_path, monkeypa
         assert conn.execute(
             "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'telemetry'"
         ).fetchone() == ("telemetry",)
+        assert conn.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
+    with get_connection() as conn:
+        assert conn.execute("PRAGMA busy_timeout").fetchone()[0] == 30000
+
+
+def test_relative_database_path_is_resolved_from_project_base(tmp_path, monkeypatch):
+    monkeypatch.setattr(database_module, "BASE_DIR", tmp_path)
+    monkeypatch.setattr(settings, "DATABASE_PATH", "state/telemetry.db")
+
+    initialize_database()
+
+    assert (tmp_path / "state" / "telemetry.db").is_file()
+
+
+def test_clean_database_initialization_is_safe_when_called_concurrently(
+    tmp_path, monkeypatch
+):
+    database = tmp_path / "concurrent" / "telemetry.db"
+    monkeypatch.setattr(settings, "DATABASE_PATH", str(database))
+    start = Barrier(2)
+
+    def initialize_together(_):
+        start.wait()
+        return initialize_database()
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = list(executor.map(initialize_together, range(2)))
+
+    assert results == [None, None]
+    with sqlite3.connect(database) as conn:
+        assert conn.execute(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' "
+            "AND name IN ('telemetry', 'devices', 'device_health_current')"
+        ).fetchone()[0] == 3
 
 
 def test_sprint13_archive_migration_preserves_rules_and_events(tmp_path, monkeypatch):

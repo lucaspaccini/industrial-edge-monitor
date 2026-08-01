@@ -13,7 +13,11 @@ logger = get_logger(__name__)
 
 client = mqtt.Client()
 
-client.connect(settings.MQTT_HOST, settings.MQTT_PORT)
+client.connect(
+    settings.MQTT_HOST,
+    settings.MQTT_PORT,
+    settings.MQTT_KEEPALIVE_SECONDS,
+)
 
 while True:
 
