@@ -22,10 +22,10 @@ jobs:
       DATABASE_PATH: /tmp/industrial-edge-monitor-tests/telemetry.db
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: 3.14.4
           cache: pip
@@ -50,10 +50,10 @@ jobs:
       NEXT_PUBLIC_API_URL: http://127.0.0.1:8000
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 22.22.1
           cache: npm
@@ -75,16 +75,16 @@ jobs:
     name: Firmware build
     runs-on: ubuntu-24.04
     timeout-minutes: 30
-    env:
-      IDF_TARGET: esp32
-    container:
-      image: espressif/idf:v6.0.2
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Build ESP32 firmware
-        run: idf.py -C firmware build
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: v6.0.2
+          target: esp32
+          path: firmware
 
   containers:
     name: Container build and smoke test
@@ -97,7 +97,7 @@ jobs:
       COMPOSE_PROJECT_NAME: iem-ci-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Validate Compose configuration
         run: docker compose config --quiet

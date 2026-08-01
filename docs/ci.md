@@ -34,10 +34,10 @@ Sprint 14 implements CI only. No delivery pipeline, deployment target or deploym
 | Workflow run | One execution of the workflow for a particular event and revision. |
 | Job | An isolated group of steps executed on one runner or in one job container. This workflow has `backend`, `frontend`, `firmware` and `containers`. |
 | Step | One ordered operation within a job, such as checkout, dependency installation or a test command. |
-| Action | A reusable GitHub Actions component referenced with `uses`, such as `actions/checkout@v4`. |
+| Action | A reusable GitHub Actions component referenced with `uses`, such as `actions/checkout@v7`. |
 | Runner | The compute environment that executes a job. |
 | GitHub-hosted runner | A temporary runner created and managed by GitHub, here based on `ubuntu-24.04`. |
-| Job container | A container in which all steps of a job execute while GitHub still manages the host runner. The firmware job uses `espressif/idf:v6.0.2`. |
+| Job container | A container in which all steps of a job execute while GitHub still manages the host runner. The current workflow does not configure a job-level container; the firmware build action instead launches its own Docker container for one step. |
 | Checkout | The step that downloads the repository revision into the job workspace. |
 | Environment variable | A named value supplied to a workflow or process, such as `APP_ENV=test`. |
 | Secret | An encrypted GitHub value intended for sensitive data. The current jobs require no application secrets. |
@@ -97,9 +97,9 @@ Supply-chain references have different strengths:
 - a package or image version tag selects a named release but the tag can be mutable;
 - a container digest identifies immutable image content;
 - a GitHub Action commit SHA identifies immutable action source;
-- a major action reference such as `actions/checkout@v4` is convenient but is not SHA-pinned.
+- a major action reference such as `actions/checkout@v7` is convenient but is not SHA-pinned.
 
-The current workflow uses version references for actions and image tags for the firmware container. It does not claim action SHA pinning or image digest pinning.
+The current workflow uses version references for actions, and the Espressif action selects its ESP-IDF Docker image by version tag. It does not claim action SHA pinning or image digest pinning.
 
 ## Runner lifecycle and isolation
 
@@ -118,7 +118,7 @@ Jobs do not automatically share files, processes, databases or containers. They 
 
 ## Workflow-level controls
 
-All jobs use a GitHub-hosted `ubuntu-24.04` runner. Backend, frontend and container steps run directly on their runner host. Firmware still receives an Ubuntu runner, but its steps execute inside the declared ESP-IDF job container.
+All jobs use a GitHub-hosted `ubuntu-24.04` runner and none declares a job-level container. Backend and frontend commands run directly on their runner host. The firmware build step invokes Espressif's action, which starts the selected official ESP-IDF image through Docker. The container job invokes Docker Compose directly on its runner.
 
 Configured timeouts are:
 
@@ -143,8 +143,8 @@ DATABASE_PATH=/tmp/industrial-edge-monitor-tests/telemetry.db
 
 It then:
 
-1. checks out the repository with `actions/checkout@v4`;
-2. installs Python `3.14.4` with `actions/setup-python@v5`;
+1. checks out the repository with `actions/checkout@v7`;
+2. installs Python `3.14.4` with `actions/setup-python@v7`;
 3. enables the setup action's pip cache using `requirements.txt` and `requirements-runtime.txt` as dependency keys;
 4. installs test and application dependencies from `requirements.txt`;
 5. runs `python -m pytest -q`.
@@ -162,7 +162,7 @@ NEXT_PUBLIC_API_URL=http://127.0.0.1:8000
 It then:
 
 1. checks out the repository;
-2. installs Node.js `22.22.1` with `actions/setup-node@v4`;
+2. installs Node.js `22.22.1` with `actions/setup-node@v7`;
 3. enables the npm download cache keyed from `frontend/package-lock.json`;
 4. runs `npm ci`;
 5. runs `npm test`;
@@ -173,20 +173,20 @@ It then:
 
 ## Firmware job
 
-The `firmware` job uses `ubuntu-24.04` as the runner host and executes its steps inside:
+The `firmware` job runs on the GitHub-hosted `ubuntu-24.04` runner. It does not declare a job-level container or execute `idf.py` directly from the runner environment. After checkout, it delegates the build to the official Espressif action:
 
 ```yaml
-container:
-  image: espressif/idf:v6.0.2
+- name: Build ESP32 firmware
+  uses: espressif/esp-idf-ci-action@v1
+  with:
+    esp_idf_version: v6.0.2
+    target: esp32
+    path: firmware
 ```
 
-It sets `IDF_TARGET=esp32`, checks out the repository and runs:
+`espressif/esp-idf-ci-action@v1` invokes the official `espressif/idf:v6.0.2` image through Docker for that build step. The action runs the ESP-IDF build for target `esp32` in the repository's `firmware` directory, so `idf.py` is provided by the selected image rather than assumed to exist on the GitHub runner.
 
-```bash
-idf.py -C firmware build
-```
-
-The ESP-IDF image fixes the toolchain version at 6.0.2 by tag. [`firmware/dependencies.lock`](../firmware/dependencies.lock) records the IDF target and managed-component resolution, including `espressif/mqtt` 1.0.0, so a clean firmware build uses the versioned component graph.
+[`firmware/dependencies.lock`](../firmware/dependencies.lock) records the IDF target and managed-component resolution, including `espressif/mqtt` 1.0.0, so a clean firmware build uses the versioned component graph.
 
 This job verifies compilation only. It does not:
 
