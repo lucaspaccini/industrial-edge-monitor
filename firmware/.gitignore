@@ -10,6 +10,7 @@ managed_components/
 
 # Local configuration
 main/config/secrets.h
+local_secrets/
 
 # IDE
 .vscode/

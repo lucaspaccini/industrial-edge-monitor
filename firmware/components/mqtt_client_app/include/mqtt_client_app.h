@@ -5,7 +5,13 @@
 
 #include "esp_err.h"
 
-void mqtt_init(void);
+/**
+ * @brief Initialize the authenticated MQTT-over-TLS transport.
+ *
+ * Initialization fails without an mqtts URI, embedded broker CA, username or
+ * password. No plaintext fallback is attempted.
+ */
+esp_err_t mqtt_init(void);
 
 /**
  * @brief Submit a telemetry payload to the MQTT client.

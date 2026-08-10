@@ -7,6 +7,7 @@
 #include "config.h"
 #include "esp_event.h"
 #include "esp_log.h"
+#include "esp_tls_errors.h"
 #include "mqtt_client.h"
 
 static const char *TAG = "mqtt";
@@ -22,6 +23,79 @@ static char telemetry_topic[MQTT_TOPIC_SIZE];
 static char health_topic[MQTT_TOPIC_SIZE];
 static char availability_topic[MQTT_TOPIC_SIZE];
 static char offline_payload[MQTT_AVAILABILITY_PAYLOAD_SIZE];
+
+#if MQTT_BROKER_CA_EMBEDDED
+extern const uint8_t mqtt_broker_ca_start[] asm("_binary_mqtt_broker_ca_start");
+#endif
+
+static bool mqtt_configuration_is_valid(void)
+{
+    const char secure_scheme[] = "mqtts://";
+
+    if (strncmp(CONFIG_MQTT_BROKER_URI, secure_scheme, sizeof(secure_scheme) - 1) != 0
+        || strstr(CONFIG_MQTT_BROKER_URI, "<broker-host>") != NULL
+        || strchr(CONFIG_MQTT_BROKER_URI, '@') != NULL) {
+        ESP_LOGE(TAG, "MQTT broker URI must use mqtts:// without embedded credentials");
+        return false;
+    }
+
+    if (CONFIG_MQTT_USERNAME[0] == '\0' || CONFIG_MQTT_PASSWORD[0] == '\0') {
+        ESP_LOGE(TAG, "MQTT username and password are not configured");
+        return false;
+    }
+
+#if !MQTT_BROKER_CA_EMBEDDED
+    ESP_LOGE(
+        TAG,
+        "Broker CA certificate is not embedded; expected configured local certificate path"
+    );
+    return false;
+#endif
+
+    return true;
+}
+
+static void log_mqtt_error(const esp_mqtt_error_codes_t *error)
+{
+    if (error == NULL) {
+        ESP_LOGE(TAG, "MQTT error without diagnostic context");
+        return;
+    }
+
+    if (error->error_type == MQTT_ERROR_TYPE_CONNECTION_REFUSED) {
+        if (error->connect_return_code == MQTT_CONNECTION_REFUSE_BAD_USERNAME) {
+            ESP_LOGE(TAG, "MQTT authentication failed: username or password rejected");
+        } else if (error->connect_return_code == MQTT_CONNECTION_REFUSE_NOT_AUTHORIZED) {
+            ESP_LOGE(TAG, "MQTT authorization failed: broker rejected the client");
+        } else {
+            ESP_LOGE(
+                TAG,
+                "MQTT broker refused the connection, reason=%d",
+                error->connect_return_code
+            );
+        }
+        return;
+    }
+
+    if (error->error_type == MQTT_ERROR_TYPE_TCP_TRANSPORT) {
+        if (error->esp_tls_cert_verify_flags != 0) {
+            ESP_LOGE(TAG, "MQTT TLS certificate or hostname verification failed");
+        } else if (error->esp_tls_last_esp_err == ESP_ERR_ESP_TLS_CANNOT_RESOLVE_HOSTNAME) {
+            ESP_LOGE(TAG, "MQTT broker DNS resolution failed");
+        } else if (error->esp_tls_last_esp_err != ESP_OK) {
+            ESP_LOGE(
+                TAG,
+                "MQTT TLS/transport connection failed: %s",
+                esp_err_to_name(error->esp_tls_last_esp_err)
+            );
+        } else {
+            ESP_LOGE(TAG, "MQTT transport connection failed");
+        }
+        return;
+    }
+
+    ESP_LOGE(TAG, "MQTT client error type=%d", error->error_type);
+}
 
 static void mqtt_event_handler(
     void *handler_args,
@@ -49,7 +123,7 @@ static void mqtt_event_handler(
             break;
 
         case MQTT_EVENT_ERROR:
-            ESP_LOGE(TAG, "MQTT error");
+            log_mqtt_error(event->error_handle);
             break;
 
         default:
@@ -57,11 +131,13 @@ static void mqtt_event_handler(
     }
 }
 
-void mqtt_init(void)
+esp_err_t mqtt_init(void)
 {
-    ESP_LOGI(TAG, "Initializing MQTT");
-    ESP_LOGI(TAG, "Host: %s", CONFIG_MQTT_HOST);
-    ESP_LOGI(TAG, "Port: %d", CONFIG_MQTT_PORT);
+    if (!mqtt_configuration_is_valid()) {
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    ESP_LOGI(TAG, "Initializing authenticated MQTT over TLS");
     snprintf(
         telemetry_topic,
         sizeof(telemetry_topic),
@@ -95,10 +171,14 @@ void mqtt_init(void)
     ESP_LOGI(TAG, "QoS: %d", CONFIG_MQTT_QOS);
 
     esp_mqtt_client_config_t mqtt_config = {
-        .broker.address.hostname = CONFIG_MQTT_HOST,
-        .broker.address.port = CONFIG_MQTT_PORT,
-        .broker.address.transport = MQTT_TRANSPORT_OVER_TCP,
+        .broker.address.uri = CONFIG_MQTT_BROKER_URI,
+#if MQTT_BROKER_CA_EMBEDDED
+        .broker.verification.certificate = (const char *)mqtt_broker_ca_start,
+#endif
+        .broker.verification.skip_cert_common_name_check = false,
+        .credentials.username = CONFIG_MQTT_USERNAME,
         .credentials.client_id = CONFIG_MQTT_CLIENT_ID,
+        .credentials.authentication.password = CONFIG_MQTT_PASSWORD,
         .session.last_will.topic = availability_topic,
         .session.last_will.msg = offline_payload,
         .session.last_will.qos = CONFIG_MQTT_QOS,
@@ -107,14 +187,35 @@ void mqtt_init(void)
 
     mqtt_client = esp_mqtt_client_init(&mqtt_config);
 
-    esp_mqtt_client_register_event(
+    if (mqtt_client == NULL) {
+        ESP_LOGE(TAG, "Failed to create MQTT client");
+        return ESP_FAIL;
+    }
+
+    esp_err_t result = esp_mqtt_client_register_event(
         mqtt_client,
         ESP_EVENT_ANY_ID,
         mqtt_event_handler,
         NULL
     );
 
-    esp_mqtt_client_start(mqtt_client);
+    if (result != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to register MQTT event handler: %s", esp_err_to_name(result));
+        esp_mqtt_client_destroy(mqtt_client);
+        mqtt_client = NULL;
+        return result;
+    }
+
+    result = esp_mqtt_client_start(mqtt_client);
+
+    if (result != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to start MQTT client: %s", esp_err_to_name(result));
+        esp_mqtt_client_destroy(mqtt_client);
+        mqtt_client = NULL;
+        return result;
+    }
+
+    return ESP_OK;
 }
 
 static esp_err_t mqtt_publish(

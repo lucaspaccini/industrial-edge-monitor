@@ -116,8 +116,9 @@ Goal: replace the simulator with a modular embedded firmware running on the ESP3
 - [x] Persistent pending/active rule state
 - [x] Persistent active/resolved alert lifecycle
 - [x] Dwell time, hysteresis and out-of-order sample protection
-- [ ] Persistent configuration management
-- [ ] Secure MQTT communication (TLS)
+- [ ] Persistent Device Configuration, Provisioning and Credential Lifecycle
+- [x] Secure MQTT communication with broker TLS and hostname verification
+- [x] Per-client MQTT authentication and least-privilege authorization
 - [ ] Telemetry buffering during connectivity outages
 
 ---
@@ -155,7 +156,7 @@ Goal: improve reliability, maintainability and deployment.
 - [ ] Type Checking
 - [ ] Raspberry Pi deployment
 - [x] Validated environment-specific backend configuration
-- [ ] Production security configuration (TLS, authentication and hardened ingress)
+- [ ] Production security configuration (API authentication, hardened HTTPS ingress and managed secrets)
 - [ ] Automated backup and restore for persistent data
 - [ ] Multi-host storage and database architecture
 

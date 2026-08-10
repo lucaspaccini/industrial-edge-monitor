@@ -32,7 +32,7 @@ This section describes component relationships. The detailed container lifecycle
 ```text
                           Compose bridge: edge
 
- ESP32/LAN ── host:1883 ──► mqtt ──► collector
+ ESP32/LAN ── MQTTS host:8883 ──► mqtt ── MQTTS ──► collector
                                         │
                                         ▼
                               /data/telemetry.db
@@ -44,11 +44,17 @@ This section describes component relationships. The detailed container lifecycle
  browser ── host:3000 ──────────────── frontend
 ```
 
-API and collector use the same non-root Python image and the same named SQLite volume. Their commands are different entry points, while domain and persistence code remains shared. The frontend image contains only the Next.js standalone server and traced runtime assets. Mosquitto has an explicit trusted local/LAN single-host configuration and a separate volume for retained broker data.
+API and collector use the same non-root Python image and the same named SQLite volume. Their commands are different entry points, while domain and persistence code remains shared. The frontend image contains only the Next.js standalone server and traced runtime assets. Mosquitto has an authenticated TLS listener, generated local security state and a separate volume for retained broker data.
 
 API starts and completes the idempotent schema migration before becoming healthy. Collector startup depends on that API health state and on a healthy broker, preventing both processes from racing the first schema migration. Normal runtime access still involves two SQLite processes, so connections enable foreign keys, WAL mode, `synchronous=NORMAL` and a configurable busy timeout.
 
 Only ports required by external clients are published: MQTT for the ESP32, FastAPI for browser calls and diagnostics, and Next.js for the dashboard. On the private bridge, services use `mqtt` and `api` DNS names. A browser or ESP32 must use an address of the Docker host instead.
+
+## MQTT trust and identity boundaries
+
+Clients validate the Mosquitto server certificate against a generated local CA and verify that the connection hostname/IP appears in the certificate SAN. Mosquitto then authenticates a username/password pair inside TLS. The broker's Dynamic Security ACLs authorize device usernames to publish only their own telemetry, health and availability topics, authorize the collector only for the required subscriptions, and isolate the legacy publisher and health-check identities. All other publish/subscribe operations are denied.
+
+A device username currently equals its `device_id` to support `%u` topic expansion. MQTT client ID remains an independent session identifier. The collector retains the topic/payload `device_id` equality check, so authorization and application identity validation are layered rather than interchangeable. Security material is runtime-mounted from ignored local files; it is absent from application images and repository history. See [MQTT security](mqtt-security.md).
 
 ## Persistence and consistency
 

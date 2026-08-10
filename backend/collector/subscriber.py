@@ -1,5 +1,6 @@
 import json
 import signal
+import ssl
 from datetime import datetime, timezone
 
 import paho.mqtt.client as mqtt
@@ -13,6 +14,11 @@ from backend.collector.schemas import (
 from backend.core.config import settings
 from backend.core.logging import configure_logging, get_logger
 from backend.database.init_db import initialize_database
+from backend.mqtt.client import (
+    connection_error_category,
+    create_mqtt_client,
+    reason_code_category,
+)
 from backend.repositories import device_repository
 from backend.services.telemetry_service import telemetry_service
 from backend.services.alert_engine import alert_engine
@@ -98,15 +104,45 @@ def process_message(topic: str, raw_payload: bytes) -> None:
 
 
 def on_connect(client, userdata, flags, reason_code, properties):
-    logger.info("Connected with result code: %s", reason_code)
+    if reason_code.is_failure:
+        logger.error(
+            "MQTT connection rejected category=%s reason=%s",
+            reason_code_category(reason_code),
+            reason_code,
+        )
+        return
+
+    logger.info("Connected to MQTT broker using authenticated TLS")
     topics = [
         (settings.MQTT_TOPIC, 0),
         (settings.MQTT_TOPIC_PREFIX.strip("/") + "/+/telemetry", 0),
         (settings.MQTT_TOPIC_PREFIX.strip("/") + "/+/health", 0),
         (settings.MQTT_TOPIC_PREFIX.strip("/") + "/+/availability", 0),
     ]
-    client.subscribe(topics)
+    result, _message_id = client.subscribe(topics)
+    if result != mqtt.MQTT_ERR_SUCCESS:
+        logger.error("MQTT subscription request failed result=%s", result)
+
+
+def on_subscribe(client, userdata, message_id, reason_codes, properties):
+    if any(reason_code.is_failure for reason_code in reason_codes):
+        logger.error(
+            "MQTT subscription rejected category=authorization message_id=%s",
+            message_id,
+        )
+        return
     logger.info("Subscribed to legacy and per-device topics")
+
+
+def on_disconnect(client, userdata, disconnect_flags, reason_code, properties):
+    if reason_code.is_failure:
+        logger.warning(
+            "MQTT connection lost category=%s reason=%s; reconnect is scheduled",
+            reason_code_category(reason_code),
+            reason_code,
+        )
+    else:
+        logger.info("Disconnected cleanly from MQTT broker")
 
 
 def on_message(client, userdata, msg):
@@ -121,14 +157,24 @@ def on_message(client, userdata, msg):
 def main():
     initialize_database()
     logger.info("Subscriber started")
-    client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+    client = create_mqtt_client()
     client.on_connect = on_connect
+    client.on_subscribe = on_subscribe
+    client.on_disconnect = on_disconnect
     client.on_message = on_message
-    client.connect(
-        settings.MQTT_HOST,
-        settings.MQTT_PORT,
-        settings.MQTT_KEEPALIVE_SECONDS,
-    )
+
+    try:
+        client.connect(
+            settings.MQTT_HOST,
+            settings.MQTT_PORT,
+            settings.MQTT_KEEPALIVE_SECONDS,
+        )
+    except (ssl.SSLError, OSError) as exc:
+        logger.error(
+            "MQTT initial connection failed category=%s",
+            connection_error_category(exc),
+        )
+        raise SystemExit(1) from exc
 
     def stop_client(signum, _frame):
         logger.info("Stopping subscriber after signal=%s", signum)

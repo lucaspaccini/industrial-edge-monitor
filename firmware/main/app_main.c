@@ -91,7 +91,23 @@ void app_main(void)
         );
     }
 
-    mqtt_init();
+    esp_err_t mqtt_result = mqtt_init();
+
+    if (mqtt_result != ESP_OK) {
+        ESP_LOGE(
+            TAG,
+            "Secure MQTT initialization failed: %s; transport-dependent tasks not started",
+            esp_err_to_name(mqtt_result)
+        );
+        device_health_update_component(
+            DEVICE_HEALTH_COMPONENT_MQTT,
+            DEVICE_HEALTH_COMPONENT_FAULT,
+            DEVICE_HEALTH_ERROR_NOT_INITIALIZED,
+            NULL
+        );
+        return;
+    }
+
     telemetry_start();
     ESP_ERROR_CHECK(device_health_service_start());
 }

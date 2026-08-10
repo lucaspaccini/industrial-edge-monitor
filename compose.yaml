@@ -17,15 +17,13 @@ x-backend: &backend
     DATABASE_TIMEOUT_SECONDS: ${DATABASE_TIMEOUT_SECONDS:-30}
     DEFAULT_HISTORY_LIMIT: ${DEFAULT_HISTORY_LIMIT:-100}
     MQTT_HOST: mqtt
-    MQTT_PORT: "1883"
+    MQTT_PORT: "8883"
     MQTT_KEEPALIVE_SECONDS: ${MQTT_KEEPALIVE_SECONDS:-60}
     MQTT_TOPIC: ${MQTT_TOPIC:-industrial/telemetry}
     MQTT_TOPIC_PREFIX: ${MQTT_TOPIC_PREFIX:-industrial/devices}
     LEGACY_DEVICE_ID: ${LEGACY_DEVICE_ID:-legacy-device}
     DEVICE_OFFLINE_TIMEOUT_SECONDS: ${DEVICE_OFFLINE_TIMEOUT_SECONDS:-150}
     CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
-  volumes:
-    - sqlite-data:/data
   networks:
     - edge
   stop_grace_period: 15s
@@ -35,9 +33,14 @@ services:
     image: eclipse-mosquitto:2.1.2-alpine
     restart: unless-stopped
     ports:
-      - "1883:1883"
+      - "8883:8883"
     volumes:
       - ./docker/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ${MQTT_SECURITY_DIR:-./.local/mqtt-security}/ca/ca.crt:/run/mqtt-security/ca/ca.crt:ro
+      - ${MQTT_SECURITY_DIR:-./.local/mqtt-security}/server/server.crt:/run/mqtt-security/server/server.crt:ro
+      - ${MQTT_SECURITY_DIR:-./.local/mqtt-security}/server/server.key:/run/mqtt-security/server/server.key:ro
+      - ${MQTT_SECURITY_DIR:-./.local/mqtt-security}/mosquitto/dynamic-security.json:/run/mqtt-security/mosquitto/dynamic-security.json
+      - ${MQTT_SECURITY_DIR:-./.local/mqtt-security}/clients/healthcheck.container.conf:/run/mqtt-security/clients/healthcheck.container.conf:ro
       - mqtt-data:/mosquitto/data
     networks:
       - edge
@@ -45,10 +48,8 @@ services:
       test:
         - CMD
         - mosquitto_pub
-        - --host
-        - 127.0.0.1
-        - --port
-        - "1883"
+        - -o
+        - /run/mqtt-security/clients/healthcheck.container.conf
         - --topic
         - industrial/healthcheck
         - --message
@@ -61,6 +62,8 @@ services:
 
   api:
     <<: *backend
+    volumes:
+      - sqlite-data:/data
     command:
       - python
       - -m
@@ -87,6 +90,18 @@ services:
 
   collector:
     <<: *backend
+    environment:
+      <<: *backend-environment
+      MQTT_CLIENT_ENABLED: "true"
+      MQTT_TLS_ENABLED: "true"
+      MQTT_CA_CERT_PATH: /run/mqtt-client/ca.crt
+      MQTT_USERNAME: ${MQTT_COLLECTOR_USERNAME:-collector}
+      MQTT_PASSWORD_FILE: /run/mqtt-client/password
+      MQTT_CLIENT_ID: ${MQTT_COLLECTOR_CLIENT_ID:-industrial-edge-collector}
+    volumes:
+      - sqlite-data:/data
+      - ${MQTT_SECURITY_DIR:-./.local/mqtt-security}/ca/ca.crt:/run/mqtt-client/ca.crt:ro
+      - ${MQTT_SECURITY_DIR:-./.local/mqtt-security}/clients/collector.password:/run/mqtt-client/password:ro
     command:
       - python
       - -m

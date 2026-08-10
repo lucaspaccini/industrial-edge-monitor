@@ -1,0 +1,50 @@
+{
+  "default_acl_access": {
+    "publishClientSend": false,
+    "publishClientReceive": false,
+    "subscribe": false,
+    "unsubscribe": true
+  },
+  "service_roles": {
+    "collector": "collector",
+    "healthcheck": "healthcheck",
+    "simulator": "legacy-publisher",
+    "legacy-test": "legacy-publisher"
+  },
+  "default_role": "device",
+  "roles": [
+    {
+      "rolename": "device",
+      "acls": [
+        {"acltype": "publishClientSend", "topic": "industrial/devices/%u/telemetry", "priority": 10, "allow": true},
+        {"acltype": "publishClientSend", "topic": "industrial/devices/%u/health", "priority": 10, "allow": true},
+        {"acltype": "publishClientSend", "topic": "industrial/devices/%u/availability", "priority": 10, "allow": true}
+      ]
+    },
+    {
+      "rolename": "collector",
+      "acls": [
+        {"acltype": "subscribeLiteral", "topic": "industrial/telemetry", "priority": 10, "allow": true},
+        {"acltype": "subscribeLiteral", "topic": "industrial/devices/+/telemetry", "priority": 10, "allow": true},
+        {"acltype": "subscribeLiteral", "topic": "industrial/devices/+/health", "priority": 10, "allow": true},
+        {"acltype": "subscribeLiteral", "topic": "industrial/devices/+/availability", "priority": 10, "allow": true},
+        {"acltype": "publishClientReceive", "topic": "industrial/telemetry", "priority": 10, "allow": true},
+        {"acltype": "publishClientReceive", "topic": "industrial/devices/+/telemetry", "priority": 10, "allow": true},
+        {"acltype": "publishClientReceive", "topic": "industrial/devices/+/health", "priority": 10, "allow": true},
+        {"acltype": "publishClientReceive", "topic": "industrial/devices/+/availability", "priority": 10, "allow": true}
+      ]
+    },
+    {
+      "rolename": "legacy-publisher",
+      "acls": [
+        {"acltype": "publishClientSend", "topic": "industrial/telemetry", "priority": 10, "allow": true}
+      ]
+    },
+    {
+      "rolename": "healthcheck",
+      "acls": [
+        {"acltype": "publishClientSend", "topic": "industrial/healthcheck", "priority": 10, "allow": true}
+      ]
+    }
+  ]
+}

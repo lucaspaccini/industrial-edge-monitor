@@ -13,14 +13,21 @@ config WIFI_MAXIMUM_RETRY
     default 5
     range 1 20
     
-config MQTT_HOST
-    string "MQTT Host"
-    default "<broker-ip>"
+config MQTT_BROKER_URI
+    string "Secure MQTT broker URI"
+    default "mqtts://<broker-host>:8883"
 
-config MQTT_PORT
-    int "MQTT Port"
-    default 1883
-    range 1 65535
+config MQTT_BROKER_CA_CERT_PATH
+    string "Broker CA certificate path relative to firmware project"
+    default "local_secrets/mqtt_ca.pem"
+
+config MQTT_USERNAME
+    string "MQTT username"
+    default ""
+
+config MQTT_PASSWORD
+    string "MQTT password (stored only in local sdkconfig)"
+    default ""
 
 config MQTT_TOPIC
     string "MQTT Topic"

@@ -15,14 +15,14 @@ Docker gives the project a repeatable way to construct and run the backend, fron
 
 In this repository, **reproducible deployment** means that the build inputs, dependency lock files, service definitions and startup commands are versioned together and can be applied from a clean checkout. It does not mean that builds are byte-for-byte identical: base images and GitHub Actions are version-tagged rather than digest-pinned, and external package registries remain build dependencies.
 
-The images are **production-like** because they use explicit runtime dependencies, non-root application users, a standalone frontend server, health checks and persistent volumes. They are not **production-secure**. The supplied stack has anonymous plaintext MQTT, unauthenticated HTTP services, no TLS and no hardened ingress, and it publishes ports directly on the host.
+The images are **production-like** because they use explicit runtime dependencies, non-root application users, a standalone frontend server, health checks and persistent volumes. The MQTT path is encrypted, authenticated and broker-authorized, but the whole stack is not **production-secure**: HTTP services remain unauthenticated, there is no HTTPS/hardened ingress, local file credentials are not a production secret store, and ports are published directly on the host.
 
 Docker solves packaging, process isolation, service discovery, repeatable topology and local persistent mounts. It does not replace:
 
 - unit, integration or system testing;
 - application and infrastructure monitoring;
 - backup and restore procedures;
-- TLS, authentication or authorization;
+- API authentication, HTTPS ingress or device provisioning;
 - secret management;
 - high availability or multi-host storage;
 - capacity planning and load testing.
@@ -62,7 +62,7 @@ The Compose model contains four services on the `edge` bridge network.
 
 | Service | Image | Main process or command | Published ports | Network | Mounts | Docker health check | Responsibility |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `mqtt` | `eclipse-mosquitto:2.1.2-alpine` | Upstream entrypoint running Mosquitto with the mounted configuration | `1883:1883` | `edge` | read-only broker configuration; `mqtt-data:/mosquitto/data` | MQTT publish to `industrial/healthcheck` | Accept MQTT connections and retain broker state. |
+| `mqtt` | `eclipse-mosquitto:2.1.2-alpine` | Upstream entrypoint running Mosquitto with the mounted configuration | `8883:8883` | `edge` | read-only broker configuration/certificates, generated authorization state, `mqtt-data:/mosquitto/data` | Authenticated TLS publish to `industrial/healthcheck` | Accept authorized MQTT TLS connections and retain broker state. |
 | `api` | `industrial-edge-monitor-backend:local` | `python -m uvicorn backend.api.main:app --host 0.0.0.0 --port 8000` | `8000:8000` | `edge` | `sqlite-data:/data` | HTTP request to `/health`, which also verifies the database connection | Serve REST endpoints and read/write application state. |
 | `collector` | `industrial-edge-monitor-backend:local` | `python -m backend.collector.subscriber` | none | `edge` | `sqlite-data:/data` | none | Subscribe to MQTT, validate messages, persist data and evaluate alerts. |
 | `frontend` | `industrial-edge-monitor-frontend:local` | `node server.js` | `3000:3000` | `edge` | none | HTTP request to `/` | Serve the Next.js dashboard. |
@@ -104,11 +104,11 @@ Compose performs these operations:
 3. It resolves or creates the project-scoped `edge` network and the `sqlite-data` and `mqtt-data` named volumes.
 4. It creates or reconciles the four service containers.
 5. Mosquitto and API become eligible to start; there is no dependency ordering between those two services, so they may start concurrently.
-6. The Mosquitto health check publishes a small MQTT message until the broker is classified `healthy`.
+6. The Mosquitto health check uses a dedicated generated identity and verified TLS to publish a small MQTT message until the broker is classified `healthy`.
 7. Importing the FastAPI application runs the idempotent SQLite initialization and migrations before Uvicorn is ready to serve normal requests.
 8. The API health check calls `/health`; that endpoint opens the database, runs `SELECT 1` and reports the API healthy only after a successful response.
 9. Collector becomes eligible to start only after both API and Mosquitto are healthy.
-10. Collector initializes the database idempotently, connects to `mqtt:1883` and subscribes to the legacy and per-device topics.
+10. Collector initializes the database idempotently, connects to `mqtt:8883`, verifies the `mqtt` certificate SAN, authenticates and subscribes to the authorized legacy and per-device topics.
 11. Frontend becomes eligible to start after API is healthy. Its start relative to collector is not strictly ordered because it does not depend on collector or MQTT.
 12. The frontend health check requests `/`. `--wait` returns successfully when health-checked services are healthy and the collector, which has no health check, is running. It fails if the 180-second timeout expires first.
 
@@ -184,31 +184,31 @@ All services use `restart: unless-stopped`. Docker can restart them after an une
 
 ## Networking and address resolution
 
-All services join the project-scoped bridge network derived from `edge`. Compose provides internal DNS records matching service names. Collector therefore connects to `mqtt:1883`; it does not use the host-published port.
+All services join the project-scoped bridge network derived from `edge`. Compose provides internal DNS records matching service names. Collector therefore connects securely to `mqtt:8883`; it does not use the host-published port.
 
 A browser and an ESP32 are outside the Compose network:
 
 - a browser running in the same VM or host can use `http://localhost:3000` and `http://localhost:8000`;
 - a browser on another computer must use a reachable LAN address of the Docker host;
-- an ESP32 must use the Docker host's LAN address and port `1883`;
+- an ESP32 must use a SAN-covered Docker host LAN address and port `8883`;
 - `mqtt` and `api` are Compose-only DNS names and are not valid from browser JavaScript or firmware outside the bridge network;
 - `localhost` on an ESP32 refers to the ESP32 itself.
 
 The mappings mean:
 
-- `1883:1883`: host TCP 1883 forwards to Mosquitto TCP 1883;
+- `8883:8883`: host TCP 8883 forwards to the Mosquitto TLS listener;
 - `8000:8000`: host TCP 8000 forwards to the API container TCP 8000;
 - `3000:3000`: host TCP 3000 forwards to the frontend container TCP 3000.
 
 No host IP is specified in these mappings, so Docker publishes them on available host interfaces. Tooling commonly displays IPv4 `0.0.0.0` and, when enabled, IPv6 `[::]`. This is broader than an internal-only listener and is one reason the stack must remain on a trusted, firewalled network.
 
-A native Mosquitto process already bound to host port 1883 prevents the Compose broker from starting. Stop that service or reconfigure one of the deployments deliberately; this repository keeps the standard `1883:1883` mapping.
+A native broker already bound to host port `8883` prevents the Compose broker from starting. Stop or deliberately reconfigure that service; this repository keeps `8883:8883` for secure MQTT.
 
 ## Configuration
 
-The repository tracks `.env.example` as a non-secret template and ignores `.env`. Compose uses shell values and environment-file rules to interpolate expressions such as `${LOG_LEVEL:-INFO}` before it creates containers. The `.env` file is not mounted into the containers.
+The repository tracks `.env.example` as a non-secret template and ignores `.env`. It also ignores `.local/`, where the generator creates the local CA, server key, hashed password source, authorization database and client files. Both paths are excluded from Docker build contexts. Compose bind-mounts only each service's required runtime material; secrets are not copied into application images.
 
-Python settings are runtime values supplied to API and collector. `backend.core.config.Settings` validates them with Pydantic. `APP_ENV=production` enables stricter checks, including an external database path and a non-loopback MQTT host. It does not enable TLS, authentication, authorization or a hardened ingress.
+Python settings are runtime values supplied to API and collector. `backend.core.config.Settings` validates them with Pydantic. An enabled production MQTT client requires TLS, a CA and complete file-backed authentication. Broker authorization comes from generated Dynamic Security state. `APP_ENV=production` still does not provide API authentication or a hardened ingress.
 
 `NEXT_PUBLIC_API_URL` is different:
 
@@ -258,7 +258,7 @@ Docker volumes are persistence, not backup. Automated backup and restore are not
 
 The implemented checks are:
 
-- Mosquitto: `mosquitto_pub` connects to `127.0.0.1:1883` inside the broker container and publishes to `industrial/healthcheck`;
+- Mosquitto: `mosquitto_pub` connects to `127.0.0.1:8883`, verifies the CA and authenticates as the constrained `healthcheck` identity before publishing to `industrial/healthcheck`;
 - API: Python requests `/health`; the endpoint verifies that a SQLite connection and `SELECT 1` succeed;
 - frontend: Node.js fetches `http://127.0.0.1:3000` and requires a successful HTTP status;
 - collector: no Docker health check.
@@ -339,30 +339,32 @@ Interpret `docker compose ps` columns as follows:
 
 A smoke test checks that the most important path works after assembling the system. It is narrower than a complete end-to-end acceptance suite, while spanning more components than an isolated unit test. An integration test verifies component collaboration; this repository's container job is both a stack integration check and a smoke test of the main data path.
 
-The implemented smoke sequence:
+The implemented security smoke sequence:
 
 1. uses a unique `COMPOSE_PROJECT_NAME` so containers, network and volumes are isolated from other projects;
-2. validates and builds the Compose model;
-3. starts the stack and waits for the implemented health checks;
-4. confirms collector subscription through its logs;
-5. confirms API and collector mount the same named volume at `/data`;
-6. publishes a known legacy telemetry sample;
-7. polls the API until that sample appears and records its exact telemetry ID;
-8. removes and recreates API and collector without replacing the volume;
-9. requires the same telemetry ID after recreation;
-10. uses a shell `trap` to print status and logs on failure and remove only the project-scoped smoke resources.
+2. generates a temporary CA, SAN certificate, random client credentials and authorization state;
+3. starts the stack and waits for the authenticated health checks;
+4. confirms collector subscription and the shared SQLite volume;
+5. rejects anonymous, bad-password, untrusted-CA and hostname-mismatch clients;
+6. rejects cross-device publish, global device subscription and collector publish attempts;
+7. accepts authenticated TLS telemetry and checks the exact API record;
+8. verifies retained health/availability, offline Last Will and the dedicated legacy publisher;
+9. removes and recreates API and collector without replacing the volume;
+10. requires the same telemetry ID and shared volume after recreation;
+11. scans logs for private-key/password markers;
+12. removes only project-scoped resources and temporary security material through a shell `trap`.
 
 Checking the exact ID proves that the row observed after recreation is the specific previously inserted record, not a new row with coincidentally equal field values.
 
-This smoke test does not establish security, load capacity, browser behavior, hardware integration, long-duration availability, fault tolerance or multi-host operation. The local manual procedure is in [Setup and deployment](setup.md#mqtt-smoke-test); the automated implementation is described in [Continuous Integration](ci.md#container-job).
+This verifies the listed MQTT controls, not complete platform security, load capacity, browser behavior, physical firmware, long-duration availability, offensive testing or multi-host operation. The local manual procedure is in [Setup and deployment](setup.md#mqtt-smoke-test); the design is in [MQTT security](mqtt-security.md).
 
 ## Troubleshooting
 
 | Symptom | Checks and action |
 | --- | --- |
-| Host port 1883 is already in use | Check the host listener with `ss -ltnp`; stop or reconfigure the native Mosquitto service before starting the Compose broker. Do not silently change the project mapping. |
+| Host port 8883 is already in use | Check the host listener with `ss -ltnp`; stop or reconfigure the native broker before starting Compose. Do not silently add a plaintext fallback. |
 | A service is `unhealthy` | Run `docker compose ps`, then inspect only that service with `docker compose logs --tail 200 <service>`. Check the health command and its dependency, such as SQLite for API. |
-| Collector is `Up` but not subscribed | Run `docker compose logs -f collector`; look first for connection errors and then for `Subscribed to legacy and per-device topics`. Confirm broker health and `MQTT_HOST=mqtt`. |
+| Collector is `Up` but not subscribed | Run `docker compose logs -f collector`; inspect categorized DNS/TLS/authentication/authorization/transport errors, then the subscription entry. Confirm broker health, `MQTT_HOST=mqtt` and mounted files. |
 | Frontend responds but browser API calls fail | Use browser developer tools to inspect the requested URL and CORS response. Confirm that the compiled URL is reachable from the browser, not merely from a container. |
 | `NEXT_PUBLIC_API_URL` is stale | Rebuild the frontend image and reconcile its container. `docker compose restart frontend` alone cannot replace a value embedded during build. |
 | Permission error under `/data` | Compare `docker compose exec api id` and `docker compose exec collector id`, then inspect `/data` from both containers. Both should run as UID/GID `10001` and mount the same volume read/write. |
@@ -379,7 +381,8 @@ Current controls and limitations are explicit:
 
 - application processes run as non-root users;
 - runtime dependencies and major tool versions are version-pinned, but images are referenced by tags rather than immutable digests;
-- Mosquitto allows anonymous plaintext MQTT;
+- MQTT uses TLS 1.2 or newer, verified server identity, authenticated clients and default-deny authorization;
+- MQTT client credentials and the CA are locally generated files rather than centrally provisioned secrets;
 - MQTT, API and frontend ports are published on all available host interfaces;
 - API and frontend have no authentication;
 - there is no reverse proxy or TLS termination;
@@ -387,4 +390,4 @@ Current controls and limitations are explicit:
 - residual npm advisories remain tracked and scoped in [Frontend](frontend.md#residual-dependency-advisories);
 - the supported environment is a trusted, firewalled LAN or lab on one host.
 
-Future hardening includes TLS, broker and API authentication, a hardened ingress, secret management, infrastructure monitoring, automated backup and restore, image digest pinning, dependency provenance and a database/storage design suitable for multiple hosts. CI behavior and its separate future evolution toward delivery or deployment are documented in [Continuous Integration](ci.md).
+Future hardening includes API authentication, a hardened HTTPS ingress, production secret/device provisioning and rotation, optional mTLS assessment, infrastructure monitoring, automated backup/restore, image digest pinning, dependency provenance and multi-host storage. CI behavior and its separate future evolution toward delivery or deployment are documented in [Continuous Integration](ci.md).

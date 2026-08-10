@@ -79,12 +79,39 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v7
 
+      - name: Generate temporary firmware trust anchor
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          umask 077
+          ca_directory="$RUNNER_TEMP/industrial-edge-monitor-firmware-ca"
+          mkdir -p "$ca_directory" firmware/local_secrets
+          openssl req -x509 -newkey rsa:2048 -sha256 -nodes \
+            -days 1 \
+            -subj "/CN=Industrial Edge Monitor CI Firmware CA" \
+            -addext "basicConstraints=critical,CA:TRUE,pathlen:0" \
+            -addext "keyUsage=critical,keyCertSign,cRLSign" \
+            -keyout "$ca_directory/ca.key" \
+            -out "$ca_directory/ca.crt" >/dev/null 2>&1
+          install -m 0644 \
+            "$ca_directory/ca.crt" \
+            firmware/local_secrets/mqtt_ca.pem
+          test -s firmware/local_secrets/mqtt_ca.pem
+
       - name: Build ESP32 firmware
         uses: espressif/esp-idf-ci-action@v1
         with:
           esp_idf_version: v6.0.2
           target: esp32
           path: firmware
+
+      - name: Verify embedded CA build branch
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test -s firmware/local_secrets/mqtt_ca.pem
+          grep --quiet -- '-DMQTT_BROKER_CA_EMBEDDED=1' firmware/build/build.ninja
+          grep --quiet 'mqtt_broker_ca' firmware/build/build.ninja
 
   containers:
     name: Container build and smoke test
@@ -107,87 +134,4 @@ jobs:
 
       - name: Start stack and run smoke test
         shell: bash
-        run: |
-          set -Eeuo pipefail
-
-          cleanup() {
-            status=$?
-            trap - EXIT
-            if [ "$status" -ne 0 ]; then
-              docker compose ps || true
-              docker compose logs --no-color || true
-            fi
-            docker compose down --volumes --remove-orphans || true
-            exit "$status"
-          }
-          trap cleanup EXIT
-
-          assert_shared_sqlite_volume() {
-            local api_container collector_container api_volume collector_volume
-
-            api_container="$(docker compose ps -q api)"
-            collector_container="$(docker compose ps -q collector)"
-            test -n "$api_container"
-            test -n "$collector_container"
-
-            api_volume="$(docker inspect --format \
-              '{{range .Mounts}}{{if and (eq .Destination "/data") (eq .Type "volume")}}{{.Name}}{{end}}{{end}}' \
-              "$api_container")"
-            collector_volume="$(docker inspect --format \
-              '{{range .Mounts}}{{if and (eq .Destination "/data") (eq .Type "volume")}}{{.Name}}{{end}}{{end}}' \
-              "$collector_container")"
-
-            test -n "$api_volume"
-            test "$api_volume" = "$collector_volume"
-          }
-
-          docker compose up --detach --wait --wait-timeout 180
-          curl --fail --silent --show-error http://127.0.0.1:8000/health >/dev/null
-          curl --fail --silent --show-error http://127.0.0.1:3000/ >/dev/null
-
-          collector_ready=0
-          for attempt in {1..30}; do
-            if docker compose logs collector 2>&1 \
-                | grep --quiet "Subscribed to legacy and per-device topics"; then
-              collector_ready=1
-              break
-            fi
-            sleep 1
-          done
-          test "$collector_ready" -eq 1
-          assert_shared_sqlite_volume
-
-          docker compose exec -T mqtt mosquitto_pub \
-            --host 127.0.0.1 \
-            --port 1883 \
-            --topic industrial/telemetry \
-            --message '{"timestamp":"2026-08-01T00:00:00Z","temperature":23.75,"humidity":45.5,"machine_status":"unknown"}'
-
-          telemetry_seen=0
-          telemetry_json=""
-          for attempt in {1..30}; do
-            if telemetry_json="$(curl --fail --silent \
-                "http://127.0.0.1:8000/telemetry/latest?device_id=legacy-device")" \
-                && python3 -c "import json,sys; item=json.loads(sys.argv[1]); assert item['device_id']=='legacy-device' and item['temperature']==23.75" \
-                  "$telemetry_json"; then
-              telemetry_seen=1
-              break
-            fi
-            sleep 1
-          done
-          test "$telemetry_seen" -eq 1
-          telemetry_id="$(python3 -c \
-            "import json,sys; print(json.loads(sys.argv[1])['id'])" \
-            "$telemetry_json")"
-          test -n "$telemetry_id"
-
-          docker compose stop api collector
-          docker compose rm --force api collector
-          docker compose up --detach --wait --wait-timeout 180 api collector
-          assert_shared_sqlite_volume
-
-          persisted_json="$(curl --fail --silent --show-error \
-            "http://127.0.0.1:8000/telemetry/latest?device_id=legacy-device")"
-          python3 -c \
-            "import json,sys; item=json.loads(sys.argv[1]); assert item['id']==int(sys.argv[2]) and item['device_id']=='legacy-device' and item['temperature']==23.75" \
-            "$persisted_json" "$telemetry_id"
+        run: scripts/compose-security-smoke.sh

@@ -6,7 +6,7 @@ The project is both a production-oriented Embedded/IoT/Edge portfolio and the ev
 
 ## Current capabilities
 
-- Modular ESP-IDF 6.0.2 firmware with BME280 acquisition, SNTP UTC time and recoverable MQTT transport.
+- Modular ESP-IDF 6.0.2 firmware with BME280 acquisition, SNTP UTC time and authenticated MQTT over TLS.
 - Separate per-device telemetry, health and availability topics, with explicit legacy-topic compatibility.
 - Strict collector validation, idempotent SQLite migrations and device-scoped FastAPI endpoints.
 - Persistent threshold alerts with dwell time, hysteresis and active/resolved event history.
@@ -16,13 +16,13 @@ The project is both a production-oriented Embedded/IoT/Edge portfolio and the ev
 ## Architecture
 
 ```text
-ESP32 ──MQTT──► Mosquitto ──► collector ──► SQLite volume ◄── FastAPI
+ESP32 ──MQTTS──► Mosquitto ──MQTTS──► collector ──► SQLite volume ◄── FastAPI
                     ▲                                      │
                     │                                      ▼
-                  LAN:1883                    browser ◄── Next.js
+                  LAN:8883                    browser ◄── Next.js
 ```
 
-The API and collector reuse one production-like Python image. Mosquitto, both Python processes and the Next.js standalone server share a private Compose network. Only MQTT `1883`, API `8000` and dashboard `3000` are published to the host.
+The API and collector reuse one production-like Python image. Mosquitto, both Python processes and the Next.js standalone server share a private Compose network. Only authenticated MQTT TLS `8883`, API `8000` and dashboard `3000` are published to the host.
 
 See [architecture](docs/architecture.md), the [Docker and Compose guide](docs/docker.md), the [CI guide](docs/ci.md), the [backend model](docs/backend.md) and the [firmware README](firmware/README.md) for component details.
 
@@ -30,12 +30,13 @@ See [architecture](docs/architecture.md), the [Docker and Compose guide](docs/do
 
 Requirements: Docker Engine with the modern Compose and Buildx plugins, plus outbound access for the initial image/dependency build.
 
-The stack intentionally publishes MQTT as `1883:1883`. Stop or reconfigure any native Mosquitto service already bound to host port `1883` before starting Compose; the mapping is not changed automatically.
+Generate local development credentials before starting the secure stack. Add the Docker host LAN hostname or IP to the broker certificate when the ESP32 connects from the LAN:
 
 ```bash
 git clone <repository>
 cd industrial-edge-monitor
 cp .env.example .env
+scripts/generate-mqtt-security.sh --lan-host <docker-host-lan-hostname-or-ip>
 docker compose up --build -d
 docker compose ps
 ```
@@ -45,7 +46,9 @@ Open:
 - dashboard: `http://localhost:3000`;
 - FastAPI documentation: `http://localhost:8000/docs`;
 - API health: `http://localhost:8000/health`;
-- MQTT from the host/LAN: `<docker-host-ip>:1883`.
+- MQTT over TLS from the host/LAN: `<docker-host-ip>:8883`.
+
+The generated `.local/mqtt-security/` tree contains secrets, is excluded from Git and Docker build contexts, and must not be copied into images or logs. Existing complete material is left unchanged. `--force` performs only an intentional complete-bundle replacement and refuses unmarked, invalid or symlink targets. Stop or reconfigure any native service already bound to host port `8883`.
 
 Useful lifecycle commands:
 
@@ -75,13 +78,17 @@ The legacy `industrial/telemetry` topic remains supported and is assigned to `le
 
 ## Traditional development workflow
 
-Docker is not required for day-to-day source development. With Python 3.14, Node.js 22, npm and a local Mosquitto service:
+Docker is not required for day-to-day source development. With Python 3.14, Node.js 22, npm and a TLS/authenticated local Mosquitto service:
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
+MQTT_CLIENT_ENABLED=true \
+MQTT_USERNAME=collector \
+MQTT_PASSWORD_FILE=.local/mqtt-security/clients/collector.password \
+MQTT_CLIENT_ID=industrial-edge-collector \
 python -m backend.collector.subscriber
 ```
 
@@ -99,7 +106,17 @@ npm ci
 npm run dev
 ```
 
-Without an ESP32, `python -m backend.simulator.publisher` publishes compatible legacy telemetry. See [docs/setup.md](docs/setup.md) for the complete non-Docker sequence.
+Without an ESP32, run the simulator with its dedicated legacy-publisher identity:
+
+```bash
+MQTT_CLIENT_ENABLED=true \
+MQTT_USERNAME=simulator \
+MQTT_PASSWORD_FILE=.local/mqtt-security/clients/simulator.password \
+MQTT_CLIENT_ID=industrial-edge-simulator \
+python -m backend.simulator.publisher
+```
+
+The shared `.env` keeps MQTT disabled, so the local API never starts a client or reads the password file. See [docs/setup.md](docs/setup.md) for the complete non-Docker sequence.
 
 ## Firmware
 
@@ -110,7 +127,7 @@ idf.py -C firmware build
 idf.py -C firmware -p /dev/ttyUSB0 flash monitor
 ```
 
-Configure the broker as the Docker host's LAN IP, not `mqtt` or `localhost`. Never connect a 24 V industrial signal directly to an ESP32 GPIO; use suitable conditioning and isolation.
+Copy the generated CA to the ignored `firmware/local_secrets/mqtt_ca.pem`, then configure an `mqtts://<LAN-host>:8883` URI and the device credentials in `menuconfig`. The URI host/IP must be present in the certificate SAN; it must not be `mqtt` or `localhost` from the ESP32. Never connect a 24 V industrial signal directly to an ESP32 GPIO; use suitable conditioning and isolation.
 
 ## Quality gates
 
@@ -130,11 +147,11 @@ docker compose config --quiet
 docker compose build
 ```
 
-The GitHub Actions workflow defines separate backend, frontend, firmware and container jobs. Equivalent checks have passed locally; the workflow run after push is the final repository gate. The container job starts an isolated stack, sends valid legacy MQTT telemetry, verifies it through FastAPI and checks SQLite persistence across container recreation. It performs no deployment. See [docs/ci.md](docs/ci.md) for the exact workflow behavior and current limitations.
+The GitHub Actions workflow defines separate backend, frontend, firmware and container jobs. The container job generates temporary security material, exercises positive and negative TLS/authentication/ACL cases, verifies MQTT-to-API ingestion and checks SQLite persistence across container recreation. It performs no deployment. See [docs/ci.md](docs/ci.md) for the exact workflow behavior and current limitations.
 
 ## Security boundary
 
-The supplied Compose stack is for a trusted local or lab network. Mosquitto intentionally allows anonymous, unencrypted connections so an ESP32 can connect during development; the API and frontend also have no authentication or reverse proxy. Do not expose this configuration to the public Internet. TLS, broker/API authentication, a hardened ingress, automated backup and restore, and multi-host storage remain separate future work.
+The supplied Compose path encrypts MQTT, verifies the broker certificate, requires a distinct username/password identity and enforces least-privilege broker authorization. It has no automatic plaintext fallback. API/dashboard authentication, HTTPS and a hardened ingress are still absent, and locally generated credentials are not a production secret-management, provisioning, per-device rotation or revocation system. Do not expose the stack directly to the public Internet. See [MQTT security](docs/mqtt-security.md).
 
 ## Repository layout
 
@@ -148,4 +165,4 @@ tests/         Isolated backend tests
 compose.yaml   Reproducible single-host stack
 ```
 
-Latest completed milestone: **Sprint 14 — Reproducible Deployment, Environment Configuration and Continuous Integration**. Persistent device configuration, TLS/authentication, hardened ingress, backup automation, multi-host storage and continuous delivery remain future work.
+Latest completed milestone: **Sprint 15 — Secure MQTT Communication and Device Authentication**. Persistent device configuration, provisioning and credential lifecycle, API authentication, hardened HTTPS ingress, backup automation, multi-host storage and continuous delivery remain future work.

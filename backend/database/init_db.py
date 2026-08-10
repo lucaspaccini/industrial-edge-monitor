@@ -1,7 +1,11 @@
 from pathlib import Path
+from threading import Lock
 
 from backend.api.database import get_connection
 from backend.core.config import settings
+
+
+_INITIALIZATION_LOCK = Lock()
 
 
 def _rebuild_alert_tables_if_needed(conn) -> None:
@@ -124,6 +128,14 @@ def _rebuild_alert_tables_if_needed(conn) -> None:
 
 
 def initialize_database() -> None:
+    # SQLite can transiently lock the first journal-mode transition when two
+    # threads initialize the same new file. Serialize only schema bootstrap;
+    # normal repository access remains concurrent and process-safe through WAL.
+    with _INITIALIZATION_LOCK:
+        _initialize_database()
+
+
+def _initialize_database() -> None:
     conn = get_connection()
 
     try:

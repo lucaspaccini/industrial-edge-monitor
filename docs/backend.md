@@ -4,6 +4,8 @@
 
 `backend.core.config.Settings` is the only backend configuration access point. It loads the root `.env` for traditional local development and normal process environment variables in containers and CI. `APP_ENV` accepts only `development`, `test` or `production`; connectivity defaults that point into the source tree or to `localhost` are rejected in production. Ports, limits, timeouts, MQTT topics/device identity and comma-separated HTTP(S) CORS origins are validated at startup.
 
+An enabled production MQTT client additionally requires TLS, a readable CA file and a complete username/readable non-empty password-file pair. Partial authentication, a CA without TLS, TLS without a CA, reversed reconnect bounds and missing files fail before network activity. The API leaves its MQTT client disabled and receives no broker secret. Collector and simulator share `backend.mqtt.client`, which builds a Paho Callback API v2 client, enforces certificate/hostname verification with TLS 1.2 or newer, configures bounded reconnect delay and reads the secret without logging it. Connection logs classify DNS, TLS certificate, TLS handshake, authentication, authorization and transport failures without including credentials.
+
 Logging uses the validated `LOG_LEVEL`. API and collector receive the same runtime settings in Compose, except for their process command. The complete environment matrix is in [setup](setup.md).
 
 The container runtime installs the exact production dependency closure in `requirements-runtime.txt`; `requirements.txt` additionally contains the pinned test toolchain used locally and in CI.

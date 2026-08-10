@@ -8,7 +8,7 @@ The firmware is responsible for:
 
 - Initializing the hardware platform.
 - Managing Wi-Fi connectivity.
-- Managing MQTT communication.
+- Managing authenticated MQTT over verified TLS.
 - Synchronizing the system clock through SNTP.
 - Acquiring environmental telemetry from connected sensors.
 - Validating complete telemetry samples before serialization.
@@ -154,7 +154,7 @@ Timestamps use UTC ISO 8601 format with second precision, for example `2026-07-2
 
 The model builds a private candidate and copies it to the caller only after every check succeeds. Missing measurements are never replaced with zero and a missing timestamp is never replaced with a placeholder. Rejected samples are neither serialized nor published.
 
-Sensor acquisition and MQTT publication are retried naturally on the next telemetry period. ESP-MQTT handles broker reconnection in the background, while the telemetry task remains alive and resumes successful publishing without restarting the device.
+Sensor acquisition and MQTT publication are retried naturally on the next telemetry period. ESP-MQTT handles secure broker reconnection in the background, while the telemetry task remains alive and resumes successful publishing without restarting the device. TLS, authentication, DNS, transport and publication errors are logged as separate categories without credential values.
 
 ## Diagnostics
 
@@ -284,6 +284,11 @@ Project settings are available under `Industrial Edge Monitor` in `idf.py menuco
 | `SNTP_SYNC_TIMEOUT_MS` | `10000` | Maximum initial wait before boot continues |
 | `TELEMETRY_PUBLISH_PERIOD_MS` | `5000` | Interval between telemetry attempts |
 | `DEVICE_ID` | `edge-node-01` | Stable application identity, separate from MQTT client ID |
+| `MQTT_BROKER_URI` | `mqtts://<broker-host>:8883` | Secure broker URI; placeholder/non-`mqtts` values fail explicitly |
+| `MQTT_BROKER_CA_CERT_PATH` | `local_secrets/mqtt_ca.pem` | Public broker CA path relative to the firmware project |
+| `MQTT_USERNAME` | empty | Per-device authenticated identity; normally equal to `DEVICE_ID` for ACL expansion |
+| `MQTT_PASSWORD` | empty | Per-device secret stored only in ignored local `sdkconfig` and the built image |
+| `MQTT_CLIENT_ID` | `industrial-edge-monitor` | MQTT session identity, independent from username and `DEVICE_ID` |
 | `MQTT_TOPIC_PREFIX` | `industrial/devices` | Prefix for per-device telemetry, health and availability |
 | `DEVICE_HEALTH_PUBLISH_PERIOD_MS` | `60000` | Retained health heartbeat interval |
 | `DEVICE_HEALTH_STATE_POLL_PERIOD_MS` | `1000` | Health state observation interval |
@@ -293,6 +298,21 @@ Project settings are available under `Industrial Edge Monitor` in `idf.py menuco
 | `MACHINE_STATUS_PULL_NONE` | enabled | Electrical pull configuration, independent from polarity |
 
 The SNTP timeout only limits the initial synchronous wait. It does not stop background synchronization and therefore cannot cause a boot loop.
+
+## Secure MQTT configuration
+
+Generate the repository's local security bundle with the Docker host LAN hostname/IP included in the server certificate SAN, then copy only the public CA into the ignored firmware tree:
+
+```bash
+scripts/generate-mqtt-security.sh --lan-host <docker-host-lan-hostname-or-ip>
+mkdir -p firmware/local_secrets
+cp .local/mqtt-security/ca/ca.crt firmware/local_secrets/mqtt_ca.pem
+idf.py -C firmware menuconfig
+```
+
+Configure an `mqtts://<SAN-host-or-IP>:8883` URI, the device username and its generated password. The username normally equals `DEVICE_ID`, while MQTT client ID remains a separate protocol-session identifier. The CMake component embeds the CA only when the configured local file exists. A missing CA, empty/placeholder credentials, embedded URI credentials or a non-secure URI makes `mqtt_init()` fail and marks the MQTT component as faulted; application startup does not downgrade to plaintext or enter a reboot loop.
+
+The CA copy, `sdkconfig` and other local secrets are ignored. No credentials are placed in versioned source or printed. Build-time credential storage is an intentional local-development limitation until secure provisioning/NVS work is implemented. See [MQTT security](../docs/mqtt-security.md) and [firmware setup](../docs/firmware-setup.md).
 
 ## Machine status electrical safety
 

@@ -12,7 +12,7 @@ This document owns installation, configuration and end-to-end operating procedur
 - the Docker Buildx plugin used by `docker compose build`;
 - outbound Internet access for the initial base-image and dependency downloads.
 
-Host ports `1883`, `8000` and `3000` must be available. In particular, stop or reconfigure a native Mosquitto service already listening on `1883` before `docker compose up`; Compose intentionally keeps the `1883:1883` mapping.
+Host ports `8883`, `8000` and `3000` must be available. Stop or reconfigure a native broker already listening on `8883` before `docker compose up`.
 
 Clone and prepare the local environment file:
 
@@ -20,9 +20,10 @@ Clone and prepare the local environment file:
 git clone <repository>
 cd industrial-edge-monitor
 cp .env.example .env
+scripts/generate-mqtt-security.sh --lan-host <docker-host-lan-hostname-or-ip>
 ```
 
-The template contains no credentials. `.env`, SQLite files, caches and local firmware/frontend configuration are ignored by Git and excluded from image build contexts.
+The template contains no credentials. The generator creates ignored local CA/server material and random per-client credentials without printing secrets. `.env`, `.local/`, SQLite files, caches and local firmware/frontend configuration are ignored by Git and excluded from image build contexts. Per-device lifecycle and rotation are not implemented; see [MQTT security](mqtt-security.md) before using an ESP32 or replacing a complete bundle.
 
 ### Configuration
 
@@ -39,8 +40,16 @@ Backend processes read configuration only through `backend.core.config.Settings`
 | `DATABASE_TIMEOUT_SECONDS` | `30` | `${DATABASE_TIMEOUT_SECONDS:-30}` | SQLite lock wait and busy timeout |
 | `DEFAULT_HISTORY_LIMIT` | `100` | `${DEFAULT_HISTORY_LIMIT:-100}` | Default REST history limit |
 | `MQTT_HOST` | `localhost` | `mqtt` | Broker host visible to the collector |
-| `MQTT_PORT` | `1883` | `1883` | MQTT TCP port |
+| `MQTT_PORT` | `8883` | `8883` | MQTT TLS port |
 | `MQTT_KEEPALIVE_SECONDS` | `60` | `${MQTT_KEEPALIVE_SECONDS:-60}` | Collector MQTT keepalive |
+| `MQTT_CLIENT_ENABLED` | `false` in `.env.example` | `true` only for collector; false for API | Enable the long-lived MQTT client explicitly per process |
+| `MQTT_TLS_ENABLED` | `true` | `true` | Enable verified TLS; mandatory for a production MQTT client |
+| `MQTT_CA_CERT_PATH` | `.local/mqtt-security/ca/ca.crt` | `/run/mqtt-client/ca.crt` | Trusted broker CA certificate |
+| `MQTT_USERNAME` | `collector` | `${MQTT_COLLECTOR_USERNAME:-collector}` | Authenticated MQTT identity |
+| `MQTT_PASSWORD_FILE` | generated collector password | `/run/mqtt-client/password` | Read-only secret file, never logged |
+| `MQTT_CLIENT_ID` | `industrial-edge-collector` | `${MQTT_COLLECTOR_CLIENT_ID:-industrial-edge-collector}` | Protocol session identity, separate from username/device ID |
+| `MQTT_RECONNECT_MIN_SECONDS` | `1` | same | Initial reconnect delay |
+| `MQTT_RECONNECT_MAX_SECONDS` | `30` | same | Maximum reconnect delay |
 | `MQTT_TOPIC` | `industrial/telemetry` | same | Explicit legacy telemetry topic |
 | `MQTT_TOPIC_PREFIX` | `industrial/devices` | same | Per-device topic prefix |
 | `LEGACY_DEVICE_ID` | `legacy-device` | same | Identity assigned to legacy telemetry |
@@ -48,9 +57,9 @@ Backend processes read configuration only through `backend.core.config.Settings`
 | `CORS_ORIGINS` | localhost origins | same unless overridden | Comma-separated browser origins, including scheme and optional port |
 | `NEXT_PUBLIC_API_URL` | `http://127.0.0.1:8000` | `http://localhost:8000` fallback | Browser-reachable FastAPI URL embedded into the frontend build |
 
-Development connectivity defaults are rejected when `Settings` is started as `production`; Compose therefore supplies `/data/telemetry.db` and the internal broker hostname explicitly.
+Development connectivity defaults are rejected when `Settings` is started as `production`; Compose therefore supplies `/data/telemetry.db`, internal broker hostname and mounted TLS/authentication material explicitly. Missing/unreadable files, partial credentials and inconsistent TLS settings fail before connection. The API does not enable an MQTT client and therefore receives no MQTT secret.
 
-`APP_ENV=production` enables stricter server-side configuration validation. It does not provide persistent ESP32 configuration, TLS, authentication or a hardened ingress.
+`APP_ENV=production` makes TLS and authentication mandatory for enabled Python MQTT clients. It does not provide persistent ESP32 provisioning, API authentication or a hardened HTTPS ingress.
 
 Python settings above are runtime variables. `NEXT_PUBLIC_API_URL` is different: Next.js inserts it into browser JavaScript during `next build`. Changing it on an already-built container has no effect. Set it before `docker compose build` and rebuild the frontend whenever the public API address changes.
 
@@ -89,18 +98,18 @@ docker compose up -d
 
 ### MQTT smoke test
 
-Wait until the collector reports `Subscribed to legacy and per-device topics`, then publish a valid legacy sample through the broker container:
+Wait until the collector reports `Subscribed to legacy and per-device topics`, then publish a valid device sample from the host with its ignored TLS option file:
 
 ```bash
-docker compose exec mqtt mosquitto_pub \
-  -h 127.0.0.1 \
-  -t industrial/telemetry \
-  -m '{"timestamp":"2026-08-01T12:00:00Z","temperature":23.75,"humidity":45.5,"machine_status":"unknown"}'
+mosquitto_pub \
+  -o .local/mqtt-security/clients/edge-node-01.host.conf \
+  -t industrial/devices/edge-node-01/telemetry \
+  -m '{"device_id":"edge-node-01","timestamp":"2026-08-01T12:00:00Z","temperature":23.75,"humidity":45.5,"machine_status":"unknown"}'
 
-curl --fail 'http://localhost:8000/telemetry/latest?device_id=legacy-device'
+curl --fail 'http://localhost:8000/telemetry/latest?device_id=edge-node-01'
 ```
 
-This exercises Mosquitto, the collector, validation, SQLite and FastAPI without changing the telemetry payload or topic contract.
+This exercises TLS, authentication, authorization, Mosquitto, collector validation, SQLite and FastAPI without changing the telemetry payload or topic contract. Run `scripts/compose-security-smoke.sh` for isolated negative tests, Last Will and persistence verification.
 
 ### Persistence and shutdown
 
@@ -128,16 +137,16 @@ docker compose down -v
 
 ### Addressing rules
 
-- Containers use Compose DNS: the collector reaches `mqtt:1883`.
+- Containers use Compose DNS: the collector reaches `mqtt:8883` and verifies the `mqtt` certificate SAN.
 - Browser code cannot resolve Compose service names; it uses the host/LAN API address compiled into `NEXT_PUBLIC_API_URL`.
-- An ESP32 cannot resolve the private Compose name either; configure the Docker host's LAN IP and exposed port `1883` in firmware `menuconfig`.
+- An ESP32 cannot resolve the private Compose name either; configure an `mqtts://` URI containing the Docker host LAN hostname/IP and port `8883`, and include that exact value in the generated certificate SAN.
 - `localhost` on the ESP32 means the ESP32 itself, not the development computer.
 
 ### Scope and security
 
 This is a single-host deployment using a local Docker volume. WAL and a bounded busy timeout support the one API process plus one collector process, but SQLite is not being presented as a replicated or network-filesystem database. Do not run multiple API/collector replicas against this file without a separate database design.
 
-Mosquitto explicitly permits anonymous plaintext MQTT and port `1883` is published for the ESP32. FastAPI and Next.js have no authentication or reverse proxy. Keep the stack on a trusted, firewalled lab/LAN network; it is not production-secure for Internet exposure.
+Mosquitto requires verified TLS, username/password authentication and least-privilege authorization on port `8883`; anonymous and plaintext connections are not part of the standard path. FastAPI and Next.js still have no authentication, HTTPS termination or reverse proxy. Keep the stack on a trusted, firewalled lab/LAN network; it is not production-secure for Internet exposure.
 
 Automated backup/restore and multi-host storage are not implemented. The documented volume-copy and retention guidance is an operational precaution, not a completed backup subsystem.
 
@@ -145,22 +154,28 @@ Automated backup/restore and multi-host storage are not implemented. The documen
 
 ### Backend and broker
 
-Requirements: Python 3.14 and a local Mosquitto service.
+Requirements: Python 3.14 and a separately configured TLS/authenticated Mosquitto service. The standard generated Compose material can also be used for host processes while the Compose broker runs.
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install -r requirements.txt
 cp .env.example .env
-sudo systemctl start mosquitto
+scripts/generate-mqtt-security.sh --lan-host localhost
 ```
 
-Run the long-lived processes from the repository root in separate terminals:
+Run the collector explicitly with its dedicated identity:
 
 ```bash
 source .venv/bin/activate
+MQTT_CLIENT_ENABLED=true \
+MQTT_USERNAME=collector \
+MQTT_PASSWORD_FILE=.local/mqtt-security/clients/collector.password \
+MQTT_CLIENT_ID=industrial-edge-collector \
 python -m backend.collector.subscriber
 ```
+
+Run the API separately. It inherits `MQTT_CLIENT_ENABLED=false`, does not construct an MQTT client and does not read the configured password file:
 
 ```bash
 source .venv/bin/activate
@@ -173,8 +188,14 @@ Optional legacy telemetry simulator:
 
 ```bash
 source .venv/bin/activate
+MQTT_CLIENT_ENABLED=true \
+MQTT_USERNAME=simulator \
+MQTT_PASSWORD_FILE=.local/mqtt-security/clients/simulator.password \
+MQTT_CLIENT_ID=industrial-edge-simulator \
 python -m backend.simulator.publisher
 ```
+
+The simulator's `simulator` role can publish only `industrial/telemetry`; it must not reuse the collector identity.
 
 ### Frontend
 
@@ -206,4 +227,4 @@ idf.py -C firmware menuconfig
 idf.py -C firmware build
 ```
 
-Hardware flashing and serial monitoring remain manual and are documented in [firmware setup](firmware-setup.md).
+Copy the generated public CA and configure the secure URI/device credentials as described in [firmware setup](firmware-setup.md). Hardware flashing and serial monitoring remain manual.

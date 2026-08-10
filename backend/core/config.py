@@ -1,4 +1,5 @@
 from ipaddress import ip_address
+import os
 from pathlib import Path
 from typing import Annotated, Any, Literal
 from urllib.parse import urlsplit
@@ -58,6 +59,14 @@ class Settings(BaseSettings):
     MQTT_HOST: str = "localhost"
     MQTT_PORT: Port = 1883
     MQTT_KEEPALIVE_SECONDS: PositiveInt = 60
+    MQTT_CLIENT_ENABLED: bool = False
+    MQTT_TLS_ENABLED: bool = False
+    MQTT_CA_CERT_PATH: str | None = None
+    MQTT_USERNAME: str | None = None
+    MQTT_PASSWORD_FILE: str | None = None
+    MQTT_CLIENT_ID: str = "industrial-edge-collector"
+    MQTT_RECONNECT_MIN_SECONDS: PositiveInt = 1
+    MQTT_RECONNECT_MAX_SECONDS: PositiveInt = 30
     MQTT_TOPIC: str = "industrial/telemetry"
     MQTT_TOPIC_PREFIX: str = "industrial/devices"
     LEGACY_DEVICE_ID: str = "legacy-device"
@@ -112,6 +121,29 @@ class Settings(BaseSettings):
             )
         return normalized
 
+    @field_validator("MQTT_CA_CERT_PATH", "MQTT_USERNAME", "MQTT_PASSWORD_FILE")
+    @classmethod
+    def normalize_optional_mqtt_value(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        return normalized or None
+
+    @field_validator("MQTT_CLIENT_ID")
+    @classmethod
+    def validate_mqtt_client_id(cls, value: str) -> str:
+        normalized = value.strip()
+        if (
+            not normalized
+            or len(normalized) > 128
+            or "\x00" in normalized
+            or any(character.isspace() for character in normalized)
+        ):
+            raise ValueError(
+                "MQTT_CLIENT_ID must be non-empty and contain no whitespace"
+            )
+        return normalized
+
     @field_validator("LEGACY_DEVICE_ID")
     @classmethod
     def validate_legacy_device_id(cls, value: str) -> str:
@@ -146,6 +178,64 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_environment_configuration(self):
+        if self.MQTT_RECONNECT_MAX_SECONDS < self.MQTT_RECONNECT_MIN_SECONDS:
+            raise ValueError(
+                "MQTT_RECONNECT_MAX_SECONDS must be greater than or equal to "
+                "MQTT_RECONNECT_MIN_SECONDS"
+            )
+
+        authentication_complete = (
+            self.MQTT_USERNAME is not None and self.MQTT_PASSWORD_FILE is not None
+        )
+        authentication_partial = (
+            self.MQTT_USERNAME is None
+        ) != (
+            self.MQTT_PASSWORD_FILE is None
+        )
+
+        if authentication_partial:
+            raise ValueError(
+                "MQTT_USERNAME and MQTT_PASSWORD_FILE must be configured together"
+            )
+
+        if self.MQTT_TLS_ENABLED and self.MQTT_CA_CERT_PATH is None:
+            raise ValueError(
+                "MQTT_CA_CERT_PATH is required when MQTT TLS is enabled"
+            )
+
+        if not self.MQTT_TLS_ENABLED and self.MQTT_CA_CERT_PATH is not None:
+            raise ValueError(
+                "MQTT_CA_CERT_PATH requires MQTT_TLS_ENABLED=true"
+            )
+
+        if self.MQTT_CLIENT_ENABLED:
+            if self.MQTT_TLS_ENABLED and not authentication_complete:
+                raise ValueError(
+                    "MQTT TLS clients require username and password-file authentication"
+                )
+
+            if self.MQTT_CA_CERT_PATH is not None:
+                self._validate_readable_file(
+                    "MQTT_CA_CERT_PATH", self.mqtt_ca_certificate_path
+                )
+
+            if self.MQTT_PASSWORD_FILE is not None:
+                self._validate_readable_file(
+                    "MQTT_PASSWORD_FILE", self.mqtt_password_path
+                )
+
+                try:
+                    password_present = bool(
+                        self.mqtt_password_path.read_text(encoding="utf-8").strip()
+                    )
+                except OSError as exc:
+                    raise ValueError(
+                        "MQTT_PASSWORD_FILE must be readable"
+                    ) from exc
+
+                if not password_present:
+                    raise ValueError("MQTT_PASSWORD_FILE must not be empty")
+
         if self.APP_ENV == "production":
             configured_path = Path(self.DATABASE_PATH).expanduser()
             database_path = (
@@ -170,7 +260,42 @@ class Settings(BaseSettings):
                 raise ValueError(
                     "MQTT_HOST must be explicitly configured for production"
                 )
+            if self.MQTT_CLIENT_ENABLED:
+                if not self.MQTT_TLS_ENABLED:
+                    raise ValueError(
+                        "MQTT_TLS_ENABLED must be true for production MQTT clients"
+                    )
+                if not authentication_complete:
+                    raise ValueError(
+                        "MQTT authentication is required for production MQTT clients"
+                    )
         return self
+
+    @staticmethod
+    def _validate_readable_file(name: str, path: Path) -> None:
+        if not path.is_file() or not os.access(path, os.R_OK):
+            raise ValueError(f"{name} must reference a readable file")
+
+    @staticmethod
+    def _resolve_path(value: str) -> Path:
+        configured_path = Path(value).expanduser()
+        return (
+            configured_path
+            if configured_path.is_absolute()
+            else BASE_DIR / configured_path
+        ).resolve()
+
+    @property
+    def mqtt_ca_certificate_path(self) -> Path:
+        if self.MQTT_CA_CERT_PATH is None:
+            raise ValueError("MQTT_CA_CERT_PATH is not configured")
+        return self._resolve_path(self.MQTT_CA_CERT_PATH)
+
+    @property
+    def mqtt_password_path(self) -> Path:
+        if self.MQTT_PASSWORD_FILE is None:
+            raise ValueError("MQTT_PASSWORD_FILE is not configured")
+        return self._resolve_path(self.MQTT_PASSWORD_FILE)
 
     @property
     def cors_origins_list(self) -> list[str]:

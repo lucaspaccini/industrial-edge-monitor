@@ -421,16 +421,16 @@ Make the complete single-host platform reproducibly buildable, configurable and 
 - Added graceful collector shutdown, SQLite WAL mode, a bounded busy timeout and automatic database-directory creation
 - Added a continuous integration workflow for backend, frontend, firmware and container verification. Equivalent checks passed locally; the GitHub Actions run after push is the final repository gate
 - Added an MQTT-to-SQLite-to-API container smoke test and exact-record persistence verification across API and collector recreation
-- Kept the standard `1883:1883` MQTT mapping and documented the conflict with an already-running native Mosquitto service
+- At Sprint 14 closure, kept the then-current `1883:1883` plaintext mapping; Sprint 15 subsequently replaced it with authenticated TLS on `8883:8883`
 - Updated Next.js to the latest stable compatible patch and separated build-only shadcn tooling from runtime dependencies
 - Inspected the final frontend image and documented the residual PostCSS and sharp advisories without hiding or force-fixing them
 
 ## Decisions
 
-- Continuous integration workflow implementation is complete. Its first successful GitHub-hosted run after push remains the final repository gate; the workflow performs no deployment, and continuous delivery remains future work.
+- Continuous integration workflow implementation is complete and the Sprint 14 baseline passed on GitHub-hosted runners; the workflow performs no deployment, and continuous delivery remains future work.
 - Environment configuration is not persistent device configuration.
 - `APP_ENV=production` selects stricter validation and runtime defaults; it is not evidence of production security.
-- The deployment target remains one host on a trusted LAN. TLS, authentication, hardened ingress, backup automation and multi-host storage remain out of scope.
+- At Sprint 14 closure, TLS and authentication were out of scope. Sprint 15 subsequently secured MQTT; hardened HTTP ingress, backup automation and multi-host storage remain future work.
 - `images.unoptimized` is retained because it makes `/_next/image` return `404` before the sharp-backed optimizer is invoked; it limits reachability but does not resolve or remove the sharp advisory.
 - No downgrade, forced audit fix, preview release or unsupported transitive override is used for residual npm findings.
 
@@ -460,9 +460,76 @@ The repository now has a reproducible, CI-enabled and locally verified single-ho
 
 ## Future Work
 
-- TLS and broker/API authentication
+- API/dashboard authentication (MQTT TLS and broker authentication were completed in Sprint 15)
 - Hardened ingress
 - Automated backup and restore
 - Multi-host storage and database design
 - Persistent device configuration
+- Continuous delivery
+
+---
+
+# Sprint 15 — Secure MQTT Communication and Device Authentication
+
+## Goal
+
+Protect the complete MQTT path with verified TLS, per-client authentication and least-privilege broker authorization while preserving all device topics, payloads, backend APIs, dashboard behavior and recovery semantics.
+
+## Completed
+
+- Replaced the standard plaintext listener with authenticated MQTT over TLS on `8883:8883`, requiring TLS 1.2 or newer and disabling anonymous access
+- Added a reproducible local generator for a constrained development CA, SAN server certificate, random per-client credentials, hashed password material and Mosquitto authorization state
+- Added default-deny roles for devices, collector, legacy simulator/test and broker health check
+- Restricted each device username to its own telemetry, health and availability topics through scalable `%u` rules
+- Prevented device subscriptions, cross-device publishing and collector publishing while authorizing only the collector's required subscriptions
+- Preserved topic/payload identity validation in the collector as a second layer beyond broker authorization
+- Added validated Python MQTT settings, file-backed secrets, TLS hostname verification, Callback API v2, bounded reconnect and categorized failure logs
+- Migrated collector and simulator to the shared secure Paho client factory without adding transport responsibilities to application services
+- Added ESP-MQTT TLS/CA verification and username/password authentication using ESP-IDF 6.0.2, with secure-URI and embedded-CA validation and no plaintext fallback
+- Preserved telemetry, retained health/availability, Last Will, reconnect and publication semantics without changing payloads or APIs
+- Mounted only the runtime material needed by each Compose service; excluded `.local/` secrets from Git and Docker build contexts
+- Limited `--device` to initial full-bundle identities and rejected reserved service names, invalid IDs and duplicates
+- Hardened `--force` with managed-bundle markers, symlink/broad-path rejection, same-parent staging, controlled backup/rename promotion and rollback-safe failure behavior
+- Verified Mosquitto 2.1.2 hash behavior and restricted policy input to supported `$7$` and Argon2id encodings
+- Updated the firmware CI job to generate a temporary CA and compile the `MQTT_BROKER_CA_EMBEDDED=1` branch
+- Added isolated configuration/client/policy tests and a CI-ready security smoke script generating and deleting only temporary secrets/resources
+- Hardened concurrent in-process database bootstrap after the full suite exposed a transient first-WAL lock; schema and normal SQLite access remain unchanged
+
+## Decisions
+
+- Use a locally generated CA and server-only TLS authentication for this sprint; clients authenticate with unique username/password pairs inside the verified TLS channel rather than mTLS.
+- Keep `device_id`, MQTT client ID and username as distinct domains. Device usernames equal `device_id` only to support broker `%u` authorization; client IDs remain session identifiers.
+- Use Mosquitto Dynamic Security generated from a versioned ACL policy and hashed password source. Its `subscribeLiteral` rules can reject unauthorized wildcard subscription requests, which static delivery ACL filtering cannot guarantee.
+- Keep the API process MQTT-disabled so it receives no MQTT credentials. Collector, simulator, devices and health check each receive only their own trust/credential material.
+- Fail immediately on missing/incoherent production TLS/authentication configuration and never downgrade to plaintext or disable hostname verification.
+- Treat local build-time ESP32 credentials as an explicit interim limitation, not persistent device provisioning.
+- Defer post-generation device creation, revocation, rotation and synchronization to “Persistent Device Configuration, Provisioning and Credential Lifecycle”; complete-bundle `--force` replacement is not a per-device lifecycle.
+- Keep the secure Compose deployment single-host and non-public until API authentication, HTTPS ingress and production secret management exist.
+
+## Verification
+
+All available automated checks and the manual ESP32 hardware test passed on the final implementation; the next pushed revision still requires its independent GitHub Actions result.
+
+- Backend: `.venv/bin/python -m pytest -q` — 123 passed, including generator path/marker/rollback and password-hash hardening
+- Frontend: `npm test` — 1 passed; `npm run lint` and Next.js 16.2.12 production build passed
+- Firmware: ESP-IDF v6.0.2 build passed for ESP32 with a temporary CA and `MQTT_BROKER_CA_EMBEDDED=1`; application binary has 11% of its partition free
+- Hardware TLS: a real ESP32 connected to Mosquitto with `mqtts` on port `8883`, negotiated TLS 1.2 with `ECDHE-RSA-AES256-GCM-SHA384`, verified the broker CA and SAN, authenticated with its dedicated device identity and published on its authorized device topics
+- Hardware end to end: real BME280 telemetry reached the collector, SQLite, API and dashboard; health and retained availability were verified, the offline Last Will appeared after keepalive-based loss detection, online state returned after power restoration, and the ESP32 reconnected automatically after a broker restart
+- Containers: backend/API/collector and frontend image builds passed; `docker compose config --quiet` passed
+- MQTT security smoke: stack health, collector subscription, anonymous/bad-password rejection, untrusted-CA and hostname rejection, cross-device/subscribe/collector-write ACL denial, valid TLS ingestion, retained health/availability, Last Will, legacy identity and SQLite persistence all passed
+- Cleanup: the isolated smoke containers, network, volumes and temporary security material were removed by the project-scoped trap
+- Workspace: shell syntax, YAML parsing, policy generation and secret-marker log checks passed; final diff/status checks are recorded at handoff
+
+## Takeaway
+
+Industrial Edge Monitor now has a secure-by-default MQTT path for its documented local single-host deployment. Broker identity is verified, every client is authenticated and topic access is constrained without weakening the application's existing device identity checks.
+
+## Future Work
+
+- Persistent Device Configuration, Provisioning and Credential Lifecycle, including per-device addition, rotation, revocation and synchronization
+- Secure device credential storage instead of build-time `sdkconfig`
+- Production secret distribution and optional mTLS assessment
+- API/dashboard authentication and hardened HTTPS ingress
+- Automated backup and restore
+- Multi-host storage and deployment architecture
 - Continuous delivery

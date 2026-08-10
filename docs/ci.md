@@ -13,7 +13,7 @@ Local checks and GitHub-hosted checks serve different purposes:
 - a successful local run increases confidence but does not create a GitHub status check;
 - for any pushed revision, its successful GitHub Actions run is the final repository gate.
 
-The workflow implementation is complete, and equivalent checks passed locally during Sprint 14. It does not deploy software.
+The workflow implementation is complete and the Sprint 14 baseline passed on GitHub-hosted runners. Sprint 15 extends the container job with temporary MQTT security material and negative security cases. It does not deploy software.
 
 CI is distinct from later release stages:
 
@@ -88,7 +88,7 @@ permissions:
 
 Jobs can read repository contents for checkout but do not receive unnecessary repository write permission. They do not publish packages, create releases, modify pull requests or deploy.
 
-Current jobs require no Wi-Fi credentials, MQTT passwords, API tokens or deployment keys. If future jobs need sensitive values, those values must be stored in GitHub Actions Secrets or an appropriate environment-level secret store and referenced at runtime. They must not be committed to the repository or written directly into the workflow.
+Current jobs require no stored Wi-Fi credentials, MQTT passwords, API tokens or deployment keys. The container job generates a temporary local CA, server key and random MQTT passwords at runtime, never prints them, and destroys them with its isolated Compose resources. No repository or GitHub secret is needed for this test. Future real deployment values belong in GitHub Actions Secrets or an appropriate environment-level secret store, never in source or workflow text.
 
 `NEXT_PUBLIC_API_URL` is not a secret. Every `NEXT_PUBLIC_*` value is embedded in browser code and must be treated as public.
 
@@ -173,7 +173,7 @@ It then:
 
 ## Firmware job
 
-The `firmware` job runs on the GitHub-hosted `ubuntu-24.04` runner. It does not declare a job-level container or execute `idf.py` directly from the runner environment. After checkout, it delegates the build to the official Espressif action:
+The `firmware` job runs on the GitHub-hosted `ubuntu-24.04` runner. It does not declare a job-level container or execute `idf.py` directly from the runner environment. Before the build, it generates a one-day test CA exclusively for that runner. The private key remains under `$RUNNER_TEMP`; only the public certificate is copied to the ignored `firmware/local_secrets/mqtt_ca.pem`, and a non-empty-file assertion fails fast before compilation. It then delegates the build to the official Espressif action:
 
 ```yaml
 - name: Build ESP32 firmware
@@ -186,14 +186,17 @@ The `firmware` job runs on the GitHub-hosted `ubuntu-24.04` runner. It does not 
 
 `espressif/esp-idf-ci-action@v1` invokes the official `espressif/idf:v6.0.2` image through Docker for that build step. The action runs the ESP-IDF build for target `esp32` in the repository's `firmware` directory, so `idf.py` is provided by the selected image rather than assumed to exist on the GitHub runner.
 
+After the action, the job inspects `firmware/build/build.ninja` and requires both `MQTT_BROKER_CA_EMBEDDED=1` and the `mqtt_broker_ca` embedded-data target. This verifies that the clean runner compiles `target_add_binary_data`, the embedded linker symbol declarations and the `broker.verification.certificate` branch rather than only the fail-closed no-CA variant. The temporary private key is never printed, uploaded or copied into the repository tree.
+
 [`firmware/dependencies.lock`](../firmware/dependencies.lock) records the IDF target and managed-component resolution, including `espressif/mqtt` 1.0.0, so a clean firmware build uses the versioned component graph.
 
-This job verifies compilation only. It does not:
+This job verifies compilation of the embedded-trust-anchor variant only. It does not:
 
 - flash an ESP32;
 - open a serial port or monitor;
 - access an ESP32-WROOM-32U or BME280;
 - test real Wi-Fi or MQTT connectivity from firmware;
+- perform a TLS handshake on real ESP32 hardware;
 - exercise GPIO wiring or machine-status input;
 - perform hardware fault injection.
 
@@ -210,23 +213,24 @@ COMPOSE_PROJECT_NAME: iem-ci-${{ github.run_id }}-${{ github.run_attempt }}
 
 The resulting unique Compose project name isolates containers, network and named volumes from other runs.
 
-The job:
+The job delegates the complete integration sequence to `scripts/compose-security-smoke.sh`:
 
 1. checks out the repository;
 2. runs `docker compose config --quiet` to validate the model without printing resolved configuration;
 3. runs `docker compose build --pull` to build the backend and frontend while checking for newer content behind configured base-image tags;
-4. installs a shell `trap` that always performs project-scoped cleanup;
-5. starts the stack with `docker compose up --detach --wait --wait-timeout 180`;
-6. requires successful HTTP responses from API `/health` and frontend `/`;
-7. polls collector logs for `Subscribed to legacy and per-device topics` because collector has no Docker health check;
-8. inspects API and collector mounts and requires the same named volume at `/data`;
-9. publishes a known legacy MQTT telemetry message through Mosquitto;
-10. polls the API until the corresponding `legacy-device` sample is returned;
-11. captures the inserted telemetry ID;
-12. stops and removes API and collector while retaining the named volume;
-13. recreates API and collector and rechecks the shared mount;
-14. queries the API again and requires the same telemetry ID and expected sample values;
-15. removes the isolated containers, network and volumes when the script exits.
+4. creates a temporary security directory and generates a local CA, SAN server certificate, hashed credentials and authorization state;
+5. installs a shell `trap` that always performs project-scoped and secret cleanup;
+6. starts the secure stack with `docker compose up --detach --wait --wait-timeout 180`;
+7. requires successful API/frontend responses, collector subscription and one shared SQLite volume;
+8. rejects anonymous and wrong-password connections;
+9. rejects an untrusted CA and a server-hostname mismatch;
+10. rejects cross-device publish, global device subscription and collector publish attempts;
+11. accepts authenticated device telemetry over TLS and verifies its exact API record;
+12. verifies retained health/availability and an offline Last Will;
+13. verifies the dedicated legacy simulator identity;
+14. recreates API and collector and requires the same telemetry ID and shared volume;
+15. rejects sensitive key/password markers in service logs;
+16. removes only the isolated containers, network, volumes and temporary security directory when the script exits.
 
 On failure, the trap first prints `docker compose ps` and the project logs, then runs:
 
@@ -234,22 +238,22 @@ On failure, the trap first prints `docker compose ps` and the project logs, then
 docker compose down --volumes --remove-orphans
 ```
 
-Because `COMPOSE_PROJECT_NAME` is unique to the run, cleanup is limited to the resources created for that CI project. It does not use a developer database or an unrelated Compose project.
+Because `COMPOSE_PROJECT_NAME` and the temporary security directory are unique to the run, cleanup is limited to resources created for that CI project. It does not use a developer database, credentials or unrelated Compose project.
 
 Checking the exact telemetry ID is stronger than checking field equality alone. It proves the post-recreation query found the same persisted row rather than a newly inserted row with the same timestamp and measurements.
 
 ## Smoke test classification
 
-The container job is an integration test of the assembled four-service stack and a smoke test of its primary ingestion path. It verifies image construction, startup dependencies, health checks, MQTT ingestion, collector processing, shared SQLite access, API retrieval and persistence across container recreation.
+The container job is an integration test of the assembled four-service stack and a security smoke test of the MQTT path. It verifies image construction, startup dependencies, authenticated TLS health checks, selected negative TLS/authentication/authorization cases, MQTT ingestion, retained state/Last Will, collector processing, shared SQLite access, API retrieval and persistence across container recreation.
 
-It is not a complete system acceptance or security test. It does not verify:
+It is not a complete system acceptance, penetration or public-deployment test. It does not verify:
 
 - every API route or validation branch;
 - all dashboard states and interactions;
 - a real browser;
 - load, throughput or resource limits;
 - long-duration availability;
-- offensive security properties;
+- every cipher/protocol edge case or offensive security property;
 - physical firmware, sensors or networking;
 - multi-host failover or storage.
 
@@ -269,7 +273,7 @@ After a push or pull request, open the repository's **Actions** tab, select the 
 - GitHub permits rerunning failed jobs or the complete workflow when the user has the necessary repository permission. A rerun uses the same commit but current external services and caches may differ.
 - The repository commit and pull-request pages show the combined status checks associated with the revision.
 
-The workflow file existing in a local checkout does not prove an external run. For any pushed revision, completion of all four GitHub-hosted jobs is the final repository gate. Sprint 14's equivalent commands passed locally; the first pushed revision must still be confirmed in GitHub Actions.
+The workflow file existing in a local checkout does not prove an external run. For any pushed revision, completion of all four GitHub-hosted jobs is the final repository gate. The Sprint 14 baseline passed externally; the unpushed Sprint 15 changes have passed equivalent local checks and must still be confirmed by the next GitHub Actions run.
 
 ## Local reproduction
 
@@ -301,10 +305,10 @@ Validate, build and start the container stack from the repository root:
 ```bash
 docker compose config --quiet
 docker compose build
-docker compose up -d --wait --wait-timeout 180
+scripts/compose-security-smoke.sh
 ```
 
-Use a unique Compose project and isolated volumes when reproducing the CI smoke logic rather than reusing development data. The detailed procedure and cleanup boundary are in [Docker and Docker Compose](docker.md#smoke-test).
+The script generates temporary credentials, uses a unique Compose project and isolated volumes, and cleans its resources. It does not reuse development data or `.local/mqtt-security`. The detailed procedure and cleanup boundary are in [Docker and Docker Compose](docker.md#smoke-test).
 
 Passing these commands locally increases confidence and shortens feedback time. It does not replace execution on GitHub's clean runner environments.
 
