@@ -508,7 +508,7 @@ Protect the complete MQTT path with verified TLS, per-client authentication and 
 
 ## Verification
 
-All available automated checks and the manual ESP32 hardware test passed on the final implementation; the next pushed revision still requires its independent GitHub Actions result.
+All automated checks passed locally and the pushed Sprint 15 revision passed its independent GitHub Actions run; the manual ESP32 hardware test also passed.
 
 - Backend: `.venv/bin/python -m pytest -q` — 123 passed, including generator path/marker/rollback and password-hash hardening
 - Frontend: `npm test` — 1 passed; `npm run lint` and Next.js 16.2.12 production build passed
