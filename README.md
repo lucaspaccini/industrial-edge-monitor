@@ -11,6 +11,7 @@ The project is both a production-oriented Embedded/IoT/Edge portfolio and the ev
 - Strict collector validation, idempotent SQLite migrations and device-scoped FastAPI endpoints.
 - Persistent threshold alerts with dwell time, hysteresis and active/resolved event history.
 - Next.js 16 dashboard whose device selector scopes telemetry, statistics, health and alerts together.
+- Node.js 24.19.0 frontend baseline shared by local development, CI and the standalone production image.
 - Reproducible four-service Docker Compose stack and separate CI jobs for backend, frontend, firmware and containers.
 
 ## Architecture
@@ -78,7 +79,7 @@ The legacy `industrial/telemetry` topic remains supported and is assigned to `le
 
 ## Traditional development workflow
 
-Docker is not required for day-to-day source development. With Python 3.14, Node.js 22, npm and a TLS/authenticated local Mosquitto service:
+Docker is not required for day-to-day source development. With Python 3.14, Node.js 24.19.0, npm and a TLS/authenticated local Mosquitto service:
 
 ```bash
 python3 -m venv .venv
@@ -100,9 +101,11 @@ uvicorn backend.api.main:app --reload
 ```
 
 ```bash
+nvm install
+nvm use
 cd frontend
 cp .env.example .env.local
-npm ci
+npm ci --ignore-scripts
 npm run dev
 ```
 
@@ -136,6 +139,7 @@ source .venv/bin/activate
 pytest -q
 
 cd frontend
+node --version  # v24.19.0
 npm test
 npm run lint
 NEXT_PUBLIC_API_URL=http://127.0.0.1:8000 npm run build
@@ -165,4 +169,4 @@ tests/         Isolated backend tests
 compose.yaml   Reproducible single-host stack
 ```
 
-Latest completed milestone: **Sprint 15 — Secure MQTT Communication and Device Authentication**. Persistent device configuration, provisioning and credential lifecycle, API authentication, hardened HTTPS ingress, backup automation, multi-host storage and continuous delivery remain future work.
+Latest completed milestone: **Sprint 16 — Runtime and Dependency Baseline Upgrade**. The next sprint is **Persistent Device Configuration, Provisioning and Credential Lifecycle**; API authentication, hardened HTTPS ingress, backup automation, multi-host storage and continuous delivery remain future work.

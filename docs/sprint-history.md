@@ -533,3 +533,70 @@ Industrial Edge Monitor now has a secure-by-default MQTT path for its documented
 - Automated backup and restore
 - Multi-host storage and deployment architecture
 - Continuous delivery
+
+---
+
+# Sprint 16 — Runtime and Dependency Baseline Upgrade
+
+## Goal
+
+Move the frontend to one controlled and reproducible Node.js baseline, refresh compatible direct and transitive dependencies, and close the previously tracked Next.js/PostCSS/sharp findings before persistent device configuration and credential lifecycle work begins.
+
+## Completed
+
+- Adopted Node.js 24.19.0 for local setup, GitHub Actions and all three frontend container stages
+- Added a repository-root `.nvmrc` pinned to `24.19.0` and a frontend engine range of `>=24.19.0 <25`
+- Regenerated `package-lock.json` only with npm 11.17.0 under Node.js 24.19.0, with dependency lifecycle scripts disabled
+- Upgraded the direct runtime set: Next.js 16.2.12 to 16.3.0, React/React DOM 19.2.4 to 19.2.8, Lucide React 1.21.0 to 1.31.0, Radix UI 1.6.0 to 1.6.7 and Recharts 3.9.0 to 3.10.1
+- Upgraded the compatible build-time set: eslint-config-next 16.2.12 to 16.3.0, ESLint 9.39.4 to 9.39.5, Tailwind CSS and its PostCSS plugin 4.3.1 to 4.3.3, shadcn 4.12.0 to 4.17.0, Node types 20.19.43 to 24.13.3, React types 19.2.17 to 19.2.18 and React DOM types 19.2.3 to 19.2.4
+- Updated supported transitive packages within their published dependency ranges; no override or forced audit remediation was added
+- Preserved Next.js standalone output, non-root execution and `images.unoptimized`
+- Configured the GitHub Actions frontend job for Node.js 24.19.0 and clean installation with lifecycle scripts disabled; the workflow is configured and locally verified, not yet externally verified for this unpushed revision
+- Updated local Node, npm, Docker, CI and frontend dependency documentation
+
+The advisory-relevant dependency inventory changed as follows:
+
+| Package and chain | Before | After | Phase and decision |
+| --- | --- | --- | --- |
+| direct `next` | 16.2.12 | 16.3.0 stable | Build and runtime framework; compatible minor upgrade selected after official engine/peer metadata and production verification |
+| `next -> postcss` | 8.4.31 | 8.5.23 | Build-time only and absent from the standalone image; four PostCSS advisories resolved |
+| `@tailwindcss/postcss` / `shadcn -> postcss` | 8.5.15 | 8.5.26 | Build-time only; patched through supported direct and transitive ranges |
+| `next -> sharp` | 0.34.5 | 0.35.3 | Optional dependency retained in the runtime trace; libvips advisory resolved and optimizer endpoint remains disabled |
+| `postcss -> nanoid` | 3.3.15 | 3.3.18 | Production-tree transitive finding resolved |
+| `shadcn -> @modelcontextprotocol/sdk -> @hono/node-server / hono` | 1.19.14 / 4.12.27 | 2.1.0 / 4.13.2 | Development CLI only; findings resolved within supported ranges |
+| `shadcn -> ajv / express-rate-limit / dotenvx` transitives | fast-uri 3.1.2, ip-address 10.2.0, undici 7.28.0 | 3.1.5, 10.5.0, 7.29.0 | Development CLI only; findings resolved within supported ranges |
+| ESLint/shadcn parsing and glob transitives | brace-expansion 1.1.15/5.0.6, js-yaml 4.3.0 | 1.1.18/5.0.9, 4.3.1 | Lint/build tooling only; findings resolved within supported ranges |
+
+## Decisions
+
+- Validate the baseline against the official [Node.js 24.19.0 LTS release](https://nodejs.org/en/blog/release/v24.19.0), [Next.js 16.3 release notes](https://nextjs.org/blog/next-16-3) and published npm engine/peer metadata before selecting versions.
+- Use `>=24.19.0 <25` rather than an exact engine value: `.nvmrc`, Docker and CI pin reproducible 24.19.0 execution, while the package contract does not reject later compatible Node 24 patches.
+- Use stable Next.js 16.3.0 because its official package metadata supports Node.js 24 and React 19, and it replaces the affected PostCSS/sharp ranges. Preview and canary releases were excluded.
+- Keep React and React DOM on matched exact versions and keep eslint-config-next exactly aligned with Next.js.
+- Keep ESLint on major 9 and TypeScript on major 5. ESLint 10 and TypeScript 7 are unrelated major migrations and are not required for Node.js 24 or Next.js 16.3 compatibility.
+- Align `@types/node` with the Node 24 runtime despite that direct major type-package change; compilation and the complete production build passed without application changes.
+- Disable dependency lifecycle scripts for lock generation, clean installation, Docker and CI. Next.js builds successfully from its packaged SWC/sharp binaries without approving install scripts.
+- Retain `images.unoptimized`: sharp is patched, but the dashboard still has no image-optimization use case and the setting preserves the previously verified reduced attack surface.
+- Make no firmware, Python backend, MQTT contract, database, API, dashboard behavior, TLS/ACL or product-function changes.
+
+## Verification
+
+- Runtime: `node --version` under the pinned local toolchain returned `v24.19.0`; npm returned `11.17.0`
+- Clean dependency install: `npm ci --ignore-scripts` installed the committed lockfile successfully
+- Frontend: `npm test` passed 1 test; `npm run lint` passed; `tsc --noEmit` passed
+- Production: the default `npm run build` completed inside the clean Node.js 24.19.0 Docker build, including Turbopack compilation, TypeScript and static generation with Next.js 16.3.0
+- Audit before: full tree reported 12 affected package entries (3 moderate, 9 high); production tree reported 4 high entries through Next.js/PostCSS/sharp/nanoid
+- Audit after: `npm audit` and `npm audit --omit=dev` both reported 0 vulnerabilities
+- Standalone: the production container returned HTTP 200, reported Node.js `v24.19.0`, contained sharp 0.35.3, did not contain PostCSS and returned 404 from `/_next/image`
+- Containers: the dedicated frontend image build and `docker compose build --pull` passed; `docker compose config --quiet` passed
+- End to end: the isolated secure Compose smoke passed broker TLS/authentication/ACL rejection cases, collector subscription, device and legacy ingestion, retained health/availability, Last Will, shared SQLite storage, API/frontend HTTP checks and persistence across API/collector recreation
+- Cleanup: isolated containers, network, volumes and temporary credentials were removed; the pre-existing local stack was restarted with its original containers and volumes and returned healthy
+- Repository hygiene: tracked-file checks found no `.env`, credential material, `.local`, local `sdkconfig`, database, `node_modules` or build artifacts; Docker ignore rules exclude the same relevant local inputs; `git diff --check` passed
+
+## Takeaway
+
+The frontend now has one locally reproducible, CI-configured and container-verified Node.js 24.19.0 baseline. Stable supported dependency updates close the previously accepted production advisory gap without changing product behavior or relying on forced remediation.
+
+## Next Sprint
+
+Persistent Device Configuration, Provisioning and Credential Lifecycle

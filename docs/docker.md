@@ -144,14 +144,14 @@ Compose explicitly supplies the API command and overrides the image command for 
 
 ## Frontend image
 
-The frontend Dockerfile has three named stages based on `node:22.22.1-alpine3.22`.
+The frontend Dockerfile has three named stages based on `node:24.19.0-alpine3.23`.
 
-The current application manifest pins Next.js `16.2.12`; `package-lock.json` records the complete npm dependency graph used by `npm ci`.
+The current application manifest pins Next.js `16.3.0`; `package-lock.json` records the complete npm dependency graph generated with Node.js 24.19.0 and npm 11.17.0.
 
 ### `dependencies`
 
 - Copies `package.json` and `package-lock.json` before application source.
-- Runs `npm ci`, which installs exactly the lockfile graph and rejects an inconsistent manifest/lockfile pair.
+- Runs `npm ci --ignore-scripts`, which installs exactly the lockfile graph, rejects an inconsistent manifest/lockfile pair and does not automatically execute dependency lifecycle scripts.
 - Produces a dependency layer reusable while the manifests remain unchanged.
 
 ### `build`
@@ -170,7 +170,7 @@ The current application manifest pins Next.js `16.2.12`; `package-lock.json` rec
 - Copies only `public`, `.next/standalone` and `.next/static` with the correct ownership.
 - Runs `node server.js` as `nextjs` on `0.0.0.0:3000`.
 
-Development source, npm cache, tests and general build tooling are not copied into the runtime stage. This selective copy is why the final image is smaller than an image containing the complete source tree and all development dependencies. The standalone tracer can still include runtime files such as sharp that Next.js considers reachable; residual frontend dependency findings are documented in [Frontend](frontend.md#residual-dependency-advisories).
+Development source, npm cache, tests and general build tooling are not copied into the runtime stage. This selective copy is why the final image is smaller than an image containing the complete source tree and all development dependencies. PostCSS is absent from the runtime image; patched sharp 0.35.3 remains in the standalone trace as an optional Next.js runtime dependency. The dependency classification is documented in [Frontend](frontend.md#dependency-advisory-status).
 
 ## Process and shutdown behavior
 
@@ -387,7 +387,7 @@ Current controls and limitations are explicit:
 - API and frontend have no authentication;
 - there is no reverse proxy or TLS termination;
 - there is no infrastructure monitoring or alert delivery for container failures;
-- residual npm advisories remain tracked and scoped in [Frontend](frontend.md#residual-dependency-advisories);
+- npm audit is currently clean for both the complete development tree and the production dependency tree; future findings remain tracked in [Frontend](frontend.md#dependency-advisory-status);
 - the supported environment is a trusted, firewalled LAN or lab on one host.
 
 Future hardening includes API authentication, a hardened HTTPS ingress, production secret/device provisioning and rotation, optional mTLS assessment, infrastructure monitoring, automated backup/restore, image digest pinning, dependency provenance and multi-host storage. CI behavior and its separate future evolution toward delivery or deployment are documented in [Continuous Integration](ci.md).

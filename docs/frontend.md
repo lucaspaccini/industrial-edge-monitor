@@ -79,11 +79,14 @@ This approach keeps the dashboard synchronized with the backend while maintainin
 
 ## Configuration
 
-Install exactly the dependency graph recorded in `package-lock.json`, then copy the local environment template:
+Use Node.js 24.19.0. The repository-root `.nvmrc` pins the local baseline and `package.json` declares `>=24.19.0 <25`, allowing compatible later Node 24 patches without silently moving to the next major. Install exactly the dependency graph recorded by npm 11.17.0 in `package-lock.json`, with lifecycle scripts disabled, then copy the local environment template:
 
 ```bash
+nvm install
+nvm use
+node --version  # v24.19.0
 cd frontend
-npm ci
+npm ci --ignore-scripts
 cp .env.example .env.local
 ```
 
@@ -103,7 +106,7 @@ NEXT_PUBLIC_API_URL=http://127.0.0.1:8000 npm run build
 
 ## Production Image
 
-`next.config.ts` enables Next.js standalone output. The dashboard does not import or render `next/image`; image optimization is also disabled globally, so direct `/_next/image` requests return `404` before Next.js invokes `sharp`. This is a defense-in-depth control while the vulnerable transitive package remains in the standalone trace, not a claim that the dependency advisory is resolved. The multi-stage `frontend/Dockerfile` installs dependencies with `npm ci`, builds the application with an explicit public API URL, and copies only the generated standalone server, static assets and public files into the runtime stage. The final container runs `node server.js` as a non-root user on `0.0.0.0:3000`; it does not contain or run the development server.
+`next.config.ts` enables Next.js standalone output. The dashboard does not import or render `next/image`; image optimization remains disabled globally, so direct `/_next/image` requests return `404` before Next.js invokes `sharp`. The multi-stage `frontend/Dockerfile` uses Node.js 24.19.0, installs the lockfile with lifecycle scripts disabled, builds the application with an explicit public API URL, and copies only the generated standalone server, static assets and public files into the runtime stage. The final container runs `node server.js` as a non-root user on `0.0.0.0:3000`; it does not contain or run the development server.
 
 Build and run it independently with:
 
@@ -117,13 +120,13 @@ docker run --rm -p 3000:3000 industrial-edge-monitor-frontend
 
 The repository-level Compose workflow manages this image together with Mosquitto, the collector and the API. The production image is intended for the documented local/single-host deployment; exposing a self-hosted Next.js server directly to the public Internet would additionally require a hardened reverse proxy and controls outside the current sprint.
 
-## Residual dependency advisories
+## Dependency advisory status
 
-`npm audit --omit=dev` remains non-zero. npm reports three affected package entries: the direct `next` entry aggregates findings from its transitive `postcss` and optional `sharp` dependencies. The PostCSS findings `GHSA-qx2v-qp2m-jg93`, `GHSA-6g55-p6wh-862q` and `GHSA-r28c-9q8g-f849` affect the build dependency pinned by Next.js. PostCSS is absent from the final standalone runtime image, and the build processes only repository-controlled CSS.
+Sprint 16 upgraded the direct runtime dependency from Next.js 16.2.12 to stable 16.3.0. The Next.js tree now pins PostCSS 8.5.23 and admits sharp 0.35.3; the separate Tailwind/shadcn build tree resolves PostCSS 8.5.26. `npm audit` and `npm audit --omit=dev` both report zero vulnerabilities.
 
-The sharp finding `GHSA-f88m-g3jw-g9cj` remains present in the standalone image because Next.js dependency tracing includes its image optimizer. This dashboard does not use `next/image`, accept image uploads or configure external image sources. In addition, `images.unoptimized` makes `/_next/image` return `404` before sharp is invoked. The setting limits reachability but does not remove the vulnerable package or resolve the advisory.
+The earlier PostCSS findings `GHSA-qx2v-qp2m-jg93`, `GHSA-6g55-p6wh-862q`, `GHSA-r28c-9q8g-f849` and `GHSA-fxqj-rqcc-2cmp` are resolved by the patched PostCSS versions. PostCSS remains a build-time dependency and was confirmed absent from the standalone runtime image.
 
-At Sprint 14 closure no stable Next.js release provides compatible patched transitive versions. No downgrade, forced audit fix or unsupported dependency override is applied. The residual risk is accepted only for the documented trusted, non-public single-host deployment and must be reassessed when an upstream-compatible release becomes available.
+The earlier sharp finding `GHSA-f88m-g3jw-g9cj` is resolved by sharp 0.35.3. Sharp remains present in the standalone trace because it is an optional Next.js runtime dependency, but `images.unoptimized` is intentionally retained: the dashboard still does not use `next/image`, and the optimizer endpoint was locally verified to return `404`. No downgrade, preview/canary release, forced audit fix or unsupported transitive override was used.
 
 ---
 

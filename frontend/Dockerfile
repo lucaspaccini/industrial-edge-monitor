@@ -1,14 +1,14 @@
 # syntax=docker/dockerfile:1
 
-FROM node:22.22.1-alpine3.22 AS dependencies
+FROM node:24.19.0-alpine3.23 AS dependencies
 
 WORKDIR /app
 
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN npm ci --ignore-scripts
 
 
-FROM node:22.22.1-alpine3.22 AS build
+FROM node:24.19.0-alpine3.23 AS build
 
 WORKDIR /app
 
@@ -24,7 +24,7 @@ COPY . .
 RUN npm run build
 
 
-FROM node:22.22.1-alpine3.22 AS runtime
+FROM node:24.19.0-alpine3.23 AS runtime
 
 WORKDIR /app
 

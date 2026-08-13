@@ -4,9 +4,15 @@ Next.js 16 dashboard for device-scoped telemetry, statistics and current device 
 
 ## Run locally
 
+Use Node.js 24.19.0. From the repository root, `nvm install` and `nvm use` read the pinned `.nvmrc`; the frontend `engines` range accepts compatible updates from 24.19.0 through the rest of the Node 24 line, but not Node 25.
+
 ```bash
+nvm install
+nvm use
+node --version  # v24.19.0
+cd frontend
 cp .env.example .env.local
-npm ci
+npm ci --ignore-scripts
 npm run dev
 ```
 
@@ -28,7 +34,7 @@ npm run build
 
 ## Production container
 
-The production image uses Next.js standalone output and runs the generated minimal Node.js server as a non-root user:
+The production image uses Node.js 24.19.0 and Next.js standalone output, and runs the generated minimal server as a non-root user:
 
 ```bash
 docker build \

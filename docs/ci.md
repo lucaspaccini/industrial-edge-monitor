@@ -162,14 +162,14 @@ NEXT_PUBLIC_API_URL=http://127.0.0.1:8000
 It then:
 
 1. checks out the repository;
-2. installs Node.js `22.22.1` with `actions/setup-node@v7`;
+2. installs Node.js `24.19.0` with `actions/setup-node@v7`;
 3. enables the npm download cache keyed from `frontend/package-lock.json`;
-4. runs `npm ci`;
+4. runs `npm ci --ignore-scripts`;
 5. runs `npm test`;
 6. runs `npm run lint`;
 7. runs `npm run build`.
 
-`npm ci` is used instead of `npm install` because CI must reproduce the committed lockfile graph and fail if `package.json` and `package-lock.json` disagree. The graph currently contains Next.js `16.2.12`. The public API URL is syntactically valid and available to the build; no live API is required for static compilation.
+`npm ci --ignore-scripts` is used instead of `npm install` because CI must reproduce the committed lockfile graph, fail if `package.json` and `package-lock.json` disagree and avoid automatically executing dependency lifecycle scripts. The graph currently contains Next.js `16.3.0`. The public API URL is syntactically valid and available to the build; no live API is required for static compilation.
 
 ## Firmware job
 
@@ -273,7 +273,7 @@ After a push or pull request, open the repository's **Actions** tab, select the 
 - GitHub permits rerunning failed jobs or the complete workflow when the user has the necessary repository permission. A rerun uses the same commit but current external services and caches may differ.
 - The repository commit and pull-request pages show the combined status checks associated with the revision.
 
-The workflow file existing in a local checkout does not prove an external run. For any pushed revision, completion of all four GitHub-hosted jobs is the final repository gate. The Sprint 14 baseline passed externally; the unpushed Sprint 15 changes have passed equivalent local checks and must still be confirmed by the next GitHub Actions run.
+The workflow file existing in a local checkout does not prove an external run. For any pushed revision, completion of all four GitHub-hosted jobs is the final repository gate. The Sprint 16 Node.js 24.19.0 workflow is configured and locally verified; it must still be confirmed by the next GitHub Actions run after push.
 
 ## Local reproduction
 
@@ -287,7 +287,8 @@ Run frontend checks:
 
 ```bash
 cd frontend
-npm ci
+node --version  # v24.19.0
+npm ci --ignore-scripts
 npm test
 npm run lint
 NEXT_PUBLIC_API_URL=http://127.0.0.1:8000 npm run build
@@ -331,7 +332,7 @@ Passing these commands locally increases confidence and shortens feedback time. 
 
 ## Current limitations and future evolution
 
-The current unpushed revision has only local equivalent verification. Its first positive GitHub Actions run after push remains the external repository gate.
+The current unpushed Sprint 16 workflow is configured and locally verified. Its first positive GitHub Actions run after push remains the external repository gate.
 
 Future CI and release work includes:
 

@@ -149,11 +149,13 @@ Goal: improve reliability, maintainability and deployment.
 - [x] Production-like Docker images
 - [x] Reproducible Docker Compose stack
 - [x] Continuous integration for backend, frontend, firmware and containers
+- [x] Node.js 24.19.0 baseline across local setup, CI and frontend containers
+- [x] Compatible frontend dependency refresh with clean development and production npm audits
 - [ ] Continuous deployment
 - [ ] Code Coverage
 - [ ] Pre-commit hooks
 - [x] Frontend linting
-- [ ] Type Checking
+- [x] Frontend TypeScript checking through `tsc --noEmit` and the production Next.js build
 - [ ] Raspberry Pi deployment
 - [x] Validated environment-specific backend configuration
 - [ ] Production security configuration (API authentication, hardened HTTPS ingress and managed secrets)

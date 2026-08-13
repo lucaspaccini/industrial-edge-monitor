@@ -199,12 +199,15 @@ The simulator's `simulator` role can publish only `industrial/telemetry`; it mus
 
 ### Frontend
 
-Requirements: Node.js 22 and npm.
+Requirements: Node.js 24.19.0 and its bundled npm. The repository-root `.nvmrc` pins the exact baseline, while the frontend manifest accepts compatible Node 24 updates from 24.19.0 onward.
 
 ```bash
+nvm install
+nvm use
+node --version  # v24.19.0
 cd frontend
 cp .env.example .env.local
-npm ci
+npm ci --ignore-scripts
 npm run dev
 ```
 
