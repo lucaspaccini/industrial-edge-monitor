@@ -270,49 +270,31 @@ Industrial Edge Monitor firmware started
 
 # Configuration
 
-Configuration files:
+`sdkconfig.defaults` version-controls the 4 MiB flash header and custom no-OTA partition table. Kconfig now contains only non-secret hardware defaults, topic/health constants and provisioning safety limits. Device-specific values are stored through the local provisioning flow, not compiled into the image.
 
-- `sdkconfig.defaults`
-- `config/config.h`
-- `config/secrets.h` *(local, ignored by Git)*
+Runtime schema version 1 contains device ID, Wi-Fi credentials, MQTT TLS URI/public CA/credentials/client ID, telemetry cadence, machine-status settings and maintenance policy. NVS uses a separate stable binary format with magic, format version, header size, payload length, fixed-width fields and explicit conversion rather than raw runtime structs. The `device_config` component validates the complete model and owns NVS active/candidate/metadata/setup-secret keys. Other components receive the typed model and never read NVS directly; invalid NVS fails closed to confirmed serial recovery without automatic erase.
 
-Project settings are available under `Industrial Edge Monitor` in `idf.py menuconfig`:
+Relevant build-time settings under `Industrial Edge Monitor` are:
 
 | Setting | Default | Purpose |
 |---------|---------|---------|
 | `SNTP_SERVER` | `pool.ntp.org` | Hostname of the time server |
 | `SNTP_SYNC_TIMEOUT_MS` | `10000` | Maximum initial wait before boot continues |
-| `TELEMETRY_PUBLISH_PERIOD_MS` | `5000` | Interval between telemetry attempts |
-| `DEVICE_ID` | `edge-node-01` | Stable application identity, separate from MQTT client ID |
-| `MQTT_BROKER_URI` | `mqtts://<broker-host>:8883` | Secure broker URI; placeholder/non-`mqtts` values fail explicitly |
-| `MQTT_BROKER_CA_CERT_PATH` | `local_secrets/mqtt_ca.pem` | Public broker CA path relative to the firmware project |
-| `MQTT_USERNAME` | empty | Per-device authenticated identity; normally equal to `DEVICE_ID` for ACL expansion |
-| `MQTT_PASSWORD` | empty | Per-device secret stored only in ignored local `sdkconfig` and the built image |
-| `MQTT_CLIENT_ID` | `industrial-edge-monitor` | MQTT session identity, independent from username and `DEVICE_ID` |
 | `MQTT_TOPIC_PREFIX` | `industrial/devices` | Prefix for per-device telemetry, health and availability |
 | `DEVICE_HEALTH_PUBLISH_PERIOD_MS` | `60000` | Retained health heartbeat interval |
 | `DEVICE_HEALTH_STATE_POLL_PERIOD_MS` | `1000` | Health state observation interval |
-| `MACHINE_STATUS_PROVIDER_DISABLED` | enabled | Safe default: report `unknown`, without degrading health |
-| `MACHINE_STATUS_GPIO` | `27` | Input pin when the GPIO provider is enabled |
-| `MACHINE_STATUS_ACTIVE_HIGH` | enabled | Logical level mapped to `running` |
-| `MACHINE_STATUS_PULL_NONE` | enabled | Electrical pull configuration, independent from polarity |
+| `PROVISIONING_MAX_BODY_BYTES` | `8192` | Hard limit for local JSON requests |
+| `PROVISIONING_SESSION_SECONDS` | `900` | Web session lifetime |
+| `PROVISIONING_LOGIN_MAX_FAILURES` | `5` | Failures before temporary lockout |
+| `PROVISIONING_CANDIDATE_MAX_ATTEMPTS` | `2` | Boot-attempt ceiling before rollback |
 
 The SNTP timeout only limits the initial synchronous wait. It does not stop background synchronization and therefore cannot cause a boot loop.
 
-## Secure MQTT configuration
+## Provisioning and secure MQTT configuration
 
-Generate the repository's local security bundle with the Docker host LAN hostname/IP included in the server certificate SAN, then copy only the public CA into the ignored firmware tree:
+Build and flash the same image for every device. A blank device starts only its WPA2 SoftAP and authenticated local HTTP service; it never attempts MQTT with incomplete values. Create a mode-`0600` MQTT provisioning package with `scripts/manage-mqtt-device.py`, enter Wi-Fi credentials locally, stage a complete candidate and reboot. The candidate becomes active only after Wi-Fi, SNTP and authenticated MQTT TLS succeed. Passwords and CA contents are never returned by the web API.
 
-```bash
-scripts/generate-mqtt-security.sh --lan-host <docker-host-lan-hostname-or-ip>
-mkdir -p firmware/local_secrets
-cp .local/mqtt-security/ca/ca.crt firmware/local_secrets/mqtt_ca.pem
-idf.py -C firmware menuconfig
-```
-
-Configure an `mqtts://<SAN-host-or-IP>:8883` URI, the device username and its generated password. The username normally equals `DEVICE_ID`, while MQTT client ID remains a separate protocol-session identifier. The CMake component embeds the CA only when the configured local file exists. A missing CA, empty/placeholder credentials, embedded URI credentials or a non-secure URI makes `mqtt_init()` fail and marks the MQTT component as faulted; application startup does not downgrade to plaintext or enter a reboot loop.
-
-The CA copy, `sdkconfig` and other local secrets are ignored. No credentials are placed in versioned source or printed. Build-time credential storage is an intentional local-development limitation until secure provisioning/NVS work is implemented. See [MQTT security](../docs/mqtt-security.md) and [firmware setup](../docs/firmware-setup.md).
+The verified module has 4 MiB flash. `partitions.csv` allocates 192 KiB NVS and a 3 MiB factory application, leaving 768 KiB unallocated. Moving from the prior 2 MiB/default-table configuration requires `erase-flash` and a full flash; old NVS is not preserved. See [Device provisioning](../docs/device-provisioning.md) for the exact layout, migration, HTTP API, serial recovery and operator-provided hardware record, the [MQTT security model](../docs/mqtt-security.md) for broker policy, and [MQTT operations](../docs/mqtt-operations.md) for procedures.
 
 ## Machine status electrical safety
 

@@ -13,6 +13,18 @@
 
 
 static const char *TAG = "telemetry_model";
+static char runtime_device_id[TELEMETRY_DEVICE_ID_SIZE];
+
+esp_err_t telemetry_model_configure(const char *device_id)
+{
+    if (device_id == NULL || device_id[0] == '\0') {
+        return ESP_ERR_INVALID_ARG;
+    }
+    int written = snprintf(runtime_device_id, sizeof(runtime_device_id), "%s", device_id);
+    return written > 0 && written < (int)sizeof(runtime_device_id)
+        ? ESP_OK
+        : ESP_ERR_INVALID_SIZE;
+}
 
 
 static esp_err_t validate_measurement(const sensor_data_t *sensor_data)
@@ -106,7 +118,7 @@ esp_err_t telemetry_model_create(telemetry_t *telemetry)
         candidate.device_id,
         sizeof(candidate.device_id),
         "%s",
-        CONFIG_DEVICE_ID
+        runtime_device_id
     );
 
     if (device_id_length <= 0

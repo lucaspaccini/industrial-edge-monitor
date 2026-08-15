@@ -29,3 +29,4 @@ typedef struct
  * valid. Callers must discard the sample for any result other than ESP_OK.
  */
 esp_err_t telemetry_model_create(telemetry_t *telemetry);
+esp_err_t telemetry_model_configure(const char *device_id);

@@ -173,7 +173,7 @@ It then:
 
 ## Firmware job
 
-The `firmware` job runs on the GitHub-hosted `ubuntu-24.04` runner. It does not declare a job-level container or execute `idf.py` directly from the runner environment. Before the build, it generates a one-day test CA exclusively for that runner. The private key remains under `$RUNNER_TEMP`; only the public certificate is copied to the ignored `firmware/local_secrets/mqtt_ca.pem`, and a non-empty-file assertion fails fast before compilation. It then delegates the build to the official Espressif action:
+The `firmware` job runs on the GitHub-hosted `ubuntu-24.04` runner. It does not declare a job-level container or execute `idf.py` directly from the runner environment. The firmware is device-independent, so CI generates no CA, password or local `sdkconfig`; it delegates the clean build to the official Espressif action:
 
 ```yaml
 - name: Build ESP32 firmware
@@ -186,11 +186,13 @@ The `firmware` job runs on the GitHub-hosted `ubuntu-24.04` runner. It does not 
 
 `espressif/esp-idf-ci-action@v1` invokes the official `espressif/idf:v6.0.2` image through Docker for that build step. The action runs the ESP-IDF build for target `esp32` in the repository's `firmware` directory, so `idf.py` is provided by the selected image rather than assumed to exist on the GitHub runner.
 
-After the action, the job inspects `firmware/build/build.ninja` and requires both `MQTT_BROKER_CA_EMBEDDED=1` and the `mqtt_broker_ca` embedded-data target. This verifies that the clean runner compiles `target_add_binary_data`, the embedded linker symbol declarations and the `broker.verification.certificate` branch rather than only the fail-closed no-CA variant. The temporary private key is never printed, uploaded or copied into the repository tree.
+After the action, `scripts/check-firmware-layout.py` parses the versioned custom table, rejects overlap/alignment/layout drift and fails when the application exceeds its 3 MiB factory partition. Additional assertions require the generated SDK configuration and flash arguments to declare 4 MiB, with the application at `0x40000`. ESP-IDF's own bootloader and partition size checks remain active as independent build gates.
 
-[`firmware/dependencies.lock`](../firmware/dependencies.lock) records the IDF target and managed-component resolution, including `espressif/mqtt` 1.0.0, so a clean firmware build uses the versioned component graph.
+The repository pytest job also compiles the production pure-C storage, diagnostic, provisioning-state, MQTT error-state, provisioning-security/lifecycle and SoftAP endpoint-classification modules on the host. Its FreeRTOS semaphore shim maps the same target mutex calls to blocking pthread mutexes rather than replacing the algorithm. Tests verify concurrent coherent 64-bit state and MQTT snapshots with no C11 busy-wait, the eight-record/loss cursor contract, fixed-width NVS round trips and malformed/unknown formats, exact setup-secret validation and fail-closed read/type/length/commit errors, explicit ASCII device IDs, revision-bound candidate activation with concurrent stage/cancel rejection and interrupted multi-key commits, IPv4/IPv4-mapped IPv6 acceptance plus fail-closed socket paths, session-bound stream-generation parsing, one-completion guarantees, and the deterministic old-worker/new-worker completion interleaving. Source guards cover partial-body and flat/nested candidate-secret clearing, disconnected-state RSSI gating and page input cleanup. Runtime stack high-water marks and radio/physical behavior remain hardware concerns; the operator-provided Sprint 17 record is documented separately from CI in [Device provisioning](device-provisioning.md#operator-provided-hardware-verification-record).
 
-This job verifies compilation of the embedded-trust-anchor variant only. It does not:
+[`firmware/dependencies.lock`](../firmware/dependencies.lock) records the IDF target and managed-component resolution, including `espressif/mqtt` 1.0.0 and `espressif/cjson` 1.7.19~2, so a clean firmware build uses the versioned component graph.
+
+This job verifies the credential-free image and flash layout. It does not:
 
 - flash an ESP32;
 - open a serial port or monitor;
@@ -199,6 +201,7 @@ This job verifies compilation of the embedded-trust-anchor variant only. It does
 - perform a TLS handshake on real ESP32 hardware;
 - exercise GPIO wiring or machine-status input;
 - perform hardware fault injection.
+- exercise first boot, SoftAP, local HTTP, NVS persistence or candidate rollback on physical flash.
 
 ## Container job
 
@@ -299,6 +302,8 @@ Run the firmware build from the repository root with ESP-IDF 6.0.2 exported:
 
 ```bash
 idf.py -C firmware build
+scripts/check-firmware-layout.py \
+  --application firmware/build/industrial_edge_monitor_firmware.bin
 ```
 
 Validate, build and start the container stack from the repository root:
@@ -332,7 +337,7 @@ Passing these commands locally increases confidence and shortens feedback time. 
 
 ## Current limitations and future evolution
 
-The current unpushed Sprint 16 workflow is configured and locally verified. Its first positive GitHub Actions run after push remains the external repository gate.
+The Sprint 17 workflow changes are configured and locally reproduced. Their first positive GitHub Actions run after push remains the external repository gate. The separately recorded operator hardware results in [Device provisioning](device-provisioning.md#operator-provided-hardware-verification-record) are not CI results.
 
 Future CI and release work includes:
 

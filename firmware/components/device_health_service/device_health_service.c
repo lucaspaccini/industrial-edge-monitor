@@ -2,6 +2,7 @@
 
 #include <inttypes.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "config.h"
 #include "device_health.h"
@@ -16,6 +17,7 @@
 
 static const char *TAG = "device_health_service";
 static TaskHandle_t task_handle = NULL;
+static char runtime_device_id[64];
 
 #define HEALTH_PAYLOAD_SIZE 1536
 #define AVAILABILITY_PAYLOAD_SIZE 160
@@ -85,7 +87,7 @@ static int serialize_health(
         "\"metrics\":{\"uptime_seconds\":%" PRIu64
         ",\"free_heap_bytes\":%" PRIu32 ",\"minimum_free_heap_bytes\":%" PRIu32
         ",\"wifi_rssi_dbm\":%s}}",
-        CONFIG_DEVICE_ID,
+        runtime_device_id,
         timestamp_json,
         device_health_overall_status_to_string(snapshot->status),
         device_availability_to_string(snapshot->availability),
@@ -193,7 +195,7 @@ static esp_err_t publish_online_availability(void)
         payload,
         sizeof(payload),
         "{\"schema_version\":1,\"device_id\":\"%s\",\"status\":\"online\"}",
-        CONFIG_DEVICE_ID
+        runtime_device_id
     );
 
     if (written < 0 || (size_t)written >= sizeof(payload)) {
@@ -321,12 +323,18 @@ static void health_task(void *parameters)
     }
 }
 
-esp_err_t device_health_service_start(void)
+esp_err_t device_health_service_start(const char *device_id)
 {
     if (task_handle != NULL) {
         return ESP_OK;
     }
-
+    if (device_id == NULL || device_id[0] == '\0') {
+        return ESP_ERR_INVALID_ARG;
+    }
+    int written = snprintf(runtime_device_id, sizeof(runtime_device_id), "%s", device_id);
+    if (written < 0 || (size_t)written >= sizeof(runtime_device_id)) {
+        return ESP_ERR_INVALID_ARG;
+    }
     BaseType_t result = xTaskCreate(
         health_task,
         "device_health",

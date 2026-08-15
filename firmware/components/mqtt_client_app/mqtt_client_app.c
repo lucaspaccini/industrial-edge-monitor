@@ -1,4 +1,5 @@
 #include "mqtt_client_app.h"
+#include "mqtt_error_state.h"
 
 #include <stdatomic.h>
 #include <stdio.h>
@@ -8,6 +9,8 @@
 #include "esp_event.h"
 #include "esp_log.h"
 #include "esp_tls_errors.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/event_groups.h"
 #include "mqtt_client.h"
 
 static const char *TAG = "mqtt";
@@ -15,6 +18,8 @@ static const char *TAG = "mqtt";
 static esp_mqtt_client_handle_t mqtt_client = NULL;
 static atomic_bool mqtt_connected = ATOMIC_VAR_INIT(false);
 static atomic_uint connection_generation = ATOMIC_VAR_INIT(0);
+static EventGroupHandle_t mqtt_event_group;
+static mqtt_error_state_t last_error = MQTT_ERROR_STATE_INITIALIZER;
 
 #define MQTT_TOPIC_SIZE 128
 #define MQTT_AVAILABILITY_PAYLOAD_SIZE 160
@@ -24,50 +29,33 @@ static char health_topic[MQTT_TOPIC_SIZE];
 static char availability_topic[MQTT_TOPIC_SIZE];
 static char offline_payload[MQTT_AVAILABILITY_PAYLOAD_SIZE];
 
-#if MQTT_BROKER_CA_EMBEDDED
-extern const uint8_t mqtt_broker_ca_start[] asm("_binary_mqtt_broker_ca_start");
-#endif
-
-static bool mqtt_configuration_is_valid(void)
+static bool mqtt_configuration_is_valid(const device_config_t *configuration)
 {
-    const char secure_scheme[] = "mqtts://";
+    return configuration != NULL && device_config_validate(configuration, NULL, 0) == ESP_OK;
+}
 
-    if (strncmp(CONFIG_MQTT_BROKER_URI, secure_scheme, sizeof(secure_scheme) - 1) != 0
-        || strstr(CONFIG_MQTT_BROKER_URI, "<broker-host>") != NULL
-        || strchr(CONFIG_MQTT_BROKER_URI, '@') != NULL) {
-        ESP_LOGE(TAG, "MQTT broker URI must use mqtts:// without embedded credentials");
-        return false;
-    }
-
-    if (CONFIG_MQTT_USERNAME[0] == '\0' || CONFIG_MQTT_PASSWORD[0] == '\0') {
-        ESP_LOGE(TAG, "MQTT username and password are not configured");
-        return false;
-    }
-
-#if !MQTT_BROKER_CA_EMBEDDED
-    ESP_LOGE(
-        TAG,
-        "Broker CA certificate is not embedded; expected configured local certificate path"
-    );
-    return false;
-#endif
-
-    return true;
+static void set_last_error(const char *message)
+{
+    mqtt_error_state_set(&last_error, message);
 }
 
 static void log_mqtt_error(const esp_mqtt_error_codes_t *error)
 {
     if (error == NULL) {
+        set_last_error("MQTT error without diagnostic context");
         ESP_LOGE(TAG, "MQTT error without diagnostic context");
         return;
     }
 
     if (error->error_type == MQTT_ERROR_TYPE_CONNECTION_REFUSED) {
         if (error->connect_return_code == MQTT_CONNECTION_REFUSE_BAD_USERNAME) {
+            set_last_error("MQTT credentials rejected");
             ESP_LOGE(TAG, "MQTT authentication failed: username or password rejected");
         } else if (error->connect_return_code == MQTT_CONNECTION_REFUSE_NOT_AUTHORIZED) {
+            set_last_error("MQTT client not authorized");
             ESP_LOGE(TAG, "MQTT authorization failed: broker rejected the client");
         } else {
+            set_last_error("MQTT broker refused connection");
             ESP_LOGE(
                 TAG,
                 "MQTT broker refused the connection, reason=%d",
@@ -79,22 +67,29 @@ static void log_mqtt_error(const esp_mqtt_error_codes_t *error)
 
     if (error->error_type == MQTT_ERROR_TYPE_TCP_TRANSPORT) {
         if (error->esp_tls_cert_verify_flags != 0) {
+            set_last_error("MQTT TLS certificate or hostname verification failed");
             ESP_LOGE(TAG, "MQTT TLS certificate or hostname verification failed");
         } else if (error->esp_tls_last_esp_err == ESP_ERR_ESP_TLS_CANNOT_RESOLVE_HOSTNAME) {
+            set_last_error("MQTT broker DNS resolution failed");
             ESP_LOGE(TAG, "MQTT broker DNS resolution failed");
         } else if (error->esp_tls_last_esp_err != ESP_OK) {
+            set_last_error("MQTT TLS transport failed");
             ESP_LOGE(
                 TAG,
                 "MQTT TLS/transport connection failed: %s",
                 esp_err_to_name(error->esp_tls_last_esp_err)
             );
         } else {
+            set_last_error("MQTT transport failed");
             ESP_LOGE(TAG, "MQTT transport connection failed");
         }
         return;
     }
 
-    ESP_LOGE(TAG, "MQTT client error type=%d", error->error_type);
+    char message[MQTT_ERROR_TEXT_CAPACITY];
+    snprintf(message, sizeof(message), "MQTT client error type=%d", error->error_type);
+    set_last_error(message);
+    ESP_LOGE(TAG, "%s", message);
 }
 
 static void mqtt_event_handler(
@@ -110,11 +105,14 @@ static void mqtt_event_handler(
         case MQTT_EVENT_CONNECTED:
             atomic_store(&mqtt_connected, true);
             atomic_fetch_add(&connection_generation, 1);
+            set_last_error("");
+            xEventGroupSetBits(mqtt_event_group, BIT0);
             ESP_LOGI(TAG, "Connected to MQTT broker");
             break;
 
         case MQTT_EVENT_DISCONNECTED:
             atomic_store(&mqtt_connected, false);
+            xEventGroupClearBits(mqtt_event_group, BIT0);
             ESP_LOGW(TAG, "Disconnected from MQTT broker");
             break;
 
@@ -131,10 +129,13 @@ static void mqtt_event_handler(
     }
 }
 
-esp_err_t mqtt_init(void)
+esp_err_t mqtt_init(const device_config_t *configuration)
 {
-    if (!mqtt_configuration_is_valid()) {
+    if (!mqtt_configuration_is_valid(configuration)) {
         return ESP_ERR_INVALID_STATE;
+    }
+    if (last_error.mutex == NULL && !mqtt_error_state_init(&last_error)) {
+        return ESP_ERR_NO_MEM;
     }
 
     ESP_LOGI(TAG, "Initializing authenticated MQTT over TLS");
@@ -143,48 +144,50 @@ esp_err_t mqtt_init(void)
         sizeof(telemetry_topic),
         "%s/%s/telemetry",
         CONFIG_MQTT_TOPIC_PREFIX,
-        CONFIG_DEVICE_ID
+        configuration->device_id
     );
     snprintf(
         health_topic,
         sizeof(health_topic),
         "%s/%s/health",
         CONFIG_MQTT_TOPIC_PREFIX,
-        CONFIG_DEVICE_ID
+        configuration->device_id
     );
     snprintf(
         availability_topic,
         sizeof(availability_topic),
         "%s/%s/availability",
         CONFIG_MQTT_TOPIC_PREFIX,
-        CONFIG_DEVICE_ID
+        configuration->device_id
     );
     snprintf(
         offline_payload,
         sizeof(offline_payload),
         "{\"schema_version\":1,\"device_id\":\"%s\",\"status\":\"offline\"}",
-        CONFIG_DEVICE_ID
+        configuration->device_id
     );
 
     ESP_LOGI(TAG, "Telemetry topic: %s", telemetry_topic);
-    ESP_LOGI(TAG, "Client ID: %s", CONFIG_MQTT_CLIENT_ID);
+    ESP_LOGI(TAG, "Client ID: %s", configuration->mqtt_client_id);
     ESP_LOGI(TAG, "QoS: %d", CONFIG_MQTT_QOS);
 
     esp_mqtt_client_config_t mqtt_config = {
-        .broker.address.uri = CONFIG_MQTT_BROKER_URI,
-#if MQTT_BROKER_CA_EMBEDDED
-        .broker.verification.certificate = (const char *)mqtt_broker_ca_start,
-#endif
+        .broker.address.uri = configuration->mqtt_broker_uri,
+        .broker.verification.certificate = configuration->mqtt_ca_certificate,
         .broker.verification.skip_cert_common_name_check = false,
-        .credentials.username = CONFIG_MQTT_USERNAME,
-        .credentials.client_id = CONFIG_MQTT_CLIENT_ID,
-        .credentials.authentication.password = CONFIG_MQTT_PASSWORD,
+        .credentials.username = configuration->mqtt_username,
+        .credentials.client_id = configuration->mqtt_client_id,
+        .credentials.authentication.password = configuration->mqtt_password,
         .session.last_will.topic = availability_topic,
         .session.last_will.msg = offline_payload,
         .session.last_will.qos = CONFIG_MQTT_QOS,
         .session.last_will.retain = 1,
     };
 
+    mqtt_event_group = xEventGroupCreate();
+    if (mqtt_event_group == NULL) {
+        return ESP_ERR_NO_MEM;
+    }
     mqtt_client = esp_mqtt_client_init(&mqtt_config);
 
     if (mqtt_client == NULL) {
@@ -272,4 +275,25 @@ bool mqtt_is_connected(void)
 uint32_t mqtt_connection_generation(void)
 {
     return atomic_load(&connection_generation);
+}
+
+esp_err_t mqtt_wait_connected(uint32_t timeout_ms)
+{
+    if (mqtt_event_group == NULL) {
+        return ESP_ERR_INVALID_STATE;
+    }
+    EventBits_t bits = xEventGroupWaitBits(
+        mqtt_event_group,
+        BIT0,
+        pdFALSE,
+        pdTRUE,
+        pdMS_TO_TICKS(timeout_ms)
+    );
+    return (bits & BIT0) != 0 ? ESP_OK : ESP_ERR_TIMEOUT;
+}
+
+esp_err_t mqtt_copy_last_error(char *buffer, size_t buffer_size)
+{
+    if (buffer == NULL || buffer_size == 0) return ESP_ERR_INVALID_ARG;
+    return mqtt_error_state_copy(&last_error, buffer, buffer_size) ? ESP_OK : ESP_ERR_INVALID_SIZE;
 }

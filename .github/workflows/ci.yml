@@ -79,25 +79,6 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v7
 
-      - name: Generate temporary firmware trust anchor
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          umask 077
-          ca_directory="$RUNNER_TEMP/industrial-edge-monitor-firmware-ca"
-          mkdir -p "$ca_directory" firmware/local_secrets
-          openssl req -x509 -newkey rsa:2048 -sha256 -nodes \
-            -days 1 \
-            -subj "/CN=Industrial Edge Monitor CI Firmware CA" \
-            -addext "basicConstraints=critical,CA:TRUE,pathlen:0" \
-            -addext "keyUsage=critical,keyCertSign,cRLSign" \
-            -keyout "$ca_directory/ca.key" \
-            -out "$ca_directory/ca.crt" >/dev/null 2>&1
-          install -m 0644 \
-            "$ca_directory/ca.crt" \
-            firmware/local_secrets/mqtt_ca.pem
-          test -s firmware/local_secrets/mqtt_ca.pem
-
       - name: Build ESP32 firmware
         uses: espressif/esp-idf-ci-action@v1
         with:
@@ -105,13 +86,16 @@ jobs:
           target: esp32
           path: firmware
 
-      - name: Verify embedded CA build branch
+      - name: Verify flash layout and application capacity
         shell: bash
         run: |
           set -Eeuo pipefail
-          test -s firmware/local_secrets/mqtt_ca.pem
-          grep --quiet -- '-DMQTT_BROKER_CA_EMBEDDED=1' firmware/build/build.ninja
-          grep --quiet 'mqtt_broker_ca' firmware/build/build.ninja
+          scripts/check-firmware-layout.py \
+            --application firmware/build/industrial_edge_monitor_firmware.bin
+          grep --quiet '#define CONFIG_ESPTOOLPY_FLASHSIZE_4MB 1' firmware/build/config/sdkconfig.h
+          grep --quiet -- '--flash-size", "4MB"' firmware/build/flasher_args.json
+          grep --quiet '"0x40000" : "industrial_edge_monitor_firmware.bin"' \
+            firmware/build/flasher_args.json
 
   containers:
     name: Container build and smoke test
@@ -135,3 +119,7 @@ jobs:
       - name: Start stack and run smoke test
         shell: bash
         run: scripts/compose-security-smoke.sh
+
+      - name: Run MQTT device lifecycle smoke test
+        shell: bash
+        run: scripts/mqtt-device-lifecycle-smoke.sh

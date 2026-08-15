@@ -7,6 +7,7 @@ tests/
 
 .env
 .env.*
+*.provisioning.json
 
 *.log
 npm-debug.log*

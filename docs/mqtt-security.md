@@ -19,83 +19,11 @@ The local CA is a trust anchor, not a client credential. It signs a server certi
 | `simulator`, `legacy-test` | Publish only `industrial/telemetry` |
 | `healthcheck` | Publish only `industrial/healthcheck` |
 
-All unspecified publish, receive and subscribe operations are denied. The versioned [`security-policy.json`](../docker/mosquitto/security-policy.json) is converted with a generated, hashed Mosquitto password file into the ignored Dynamic Security database. Dynamic Security is used because its `subscribeLiteral` ACLs reject unauthorized wildcard subscription requests at subscription time; a traditional static Mosquitto ACL only filters delivered messages. The shared `%u` role is scalable, but post-generation creation, revocation, rotation and synchronization of identities are deliberately deferred.
+All unspecified publish, receive and subscribe operations are denied. The versioned [`security-policy.json`](../docker/mosquitto/security-policy.json) is converted with a generated, hashed Mosquitto password file into the ignored Dynamic Security database. Dynamic Security is used because its `subscribeLiteral` ACLs reject unauthorized wildcard subscription requests at subscription time; a traditional static Mosquitto ACL only filters delivered messages. The shared `%u` role is also used by the transactional per-device lifecycle command.
 
-## Generate local material
+## Operational procedures
 
-Requirements are Docker, OpenSSL and Python 3. Generate the bundle before the first Compose start:
-
-```bash
-scripts/generate-mqtt-security.sh \
-  --lan-host 192.168.1.20 \
-  --lan-host edge-monitor.local
-```
-
-Use only the LAN names/addresses clients will actually use. The default bundle also creates `edge-node-01`, `edge-node-02`, collector, simulator, legacy-test and health-check identities. Additional identities may be included only during initial full-bundle generation with `--device DEVICE_ID`. Device IDs follow the application contract of 1–63 Unicode alphanumeric, `.`, `_` or `-` characters. Reserved service names and duplicates are rejected.
-
-The script writes `.local/mqtt-security/` with restrictive permissions and prints neither passwords nor keys. It verifies the CA constraint, certificate chain and built-in SAN entries. A complete existing directory is left untouched and an unmanaged, invalidly marked or symlink directory is never replaced. `--force` is accepted only for a regular `.generated-version` marker with the expected value. Generation completes in the same parent before a controlled backup/rename promotion; an error preserves the prior bundle. This is a complete-bundle replacement, not normal credential rotation. `.local/` is excluded from Git and the Docker build context.
-
-The fixed Mosquitto 2.1.2 image produces `$7$` SHA-512 PBKDF2 hashes for the generator's `mosquitto_passwd -U` operation and also supports Argon2id. The policy builder accepts only `$7$` and `$argon2id$` encoded values; plaintext and unknown hash formats fail validation.
-
-Inspect public certificate metadata without exposing secrets:
-
-```bash
-openssl verify \
-  -CAfile .local/mqtt-security/ca/ca.crt \
-  .local/mqtt-security/server/server.crt
-openssl x509 \
-  -in .local/mqtt-security/server/server.crt \
-  -noout -subject -issuer -dates -ext subjectAltName
-```
-
-## Start and verify
-
-```bash
-cp .env.example .env
-docker compose config --quiet
-docker compose up --build -d --wait --wait-timeout 180
-docker compose ps
-```
-
-The broker mounts the server certificate/key and generated Dynamic Security database. The collector mounts only the CA and its own password file. The health check uses a dedicated constrained identity. API and frontend do not receive MQTT credentials.
-
-Host tools can reuse ignored option files without putting a password on the command line:
-
-```bash
-mosquitto_pub \
-  -o .local/mqtt-security/clients/edge-node-01.host.conf \
-  -t industrial/devices/edge-node-01/telemetry \
-  -m '{"device_id":"edge-node-01","timestamp":"2026-08-10T12:00:00Z","temperature":23.75,"humidity":45.5,"machine_status":"unknown"}'
-```
-
-A device subscription and a cross-device publish must be rejected. The repository smoke test verifies those negative cases, anonymous and bad-password rejection, untrusted CA and hostname mismatch, valid telemetry, retained health/availability, Last Will and persistence:
-
-```bash
-scripts/compose-security-smoke.sh
-```
-
-The smoke script creates a unique Compose project and temporary security directory, then removes only its own containers, network, volumes and secrets.
-
-## ESP32 configuration
-
-Generate a certificate containing the Docker host LAN hostname/IP, then copy only the public CA certificate into the ignored firmware location:
-
-```bash
-mkdir -p firmware/local_secrets
-cp .local/mqtt-security/ca/ca.crt firmware/local_secrets/mqtt_ca.pem
-idf.py -C firmware menuconfig
-```
-
-Under `Industrial Edge Monitor`, set:
-
-- broker URI to `mqtts://<SAN-host-or-IP>:8883`;
-- username to the same identity as `DEVICE_ID`, for example `edge-node-01`;
-- that identity's generated password;
-- broker CA path to `local_secrets/mqtt_ca.pem`.
-
-The build embeds the public CA. Local `sdkconfig`, CA copy and credentials are ignored. An invalid/non-`mqtts` URI, placeholder, missing embedded CA or incomplete credentials makes MQTT initialization fail explicitly; there is no plaintext retry. ESP-MQTT keeps its existing reconnect, retained availability/health, Last Will and telemetry behavior after a valid secure initialization.
-
-Build-time credentials in `sdkconfig` and the firmware binary are suitable only for the current controlled local workflow. Per-device provisioning, secure storage and rotation through NVS or a hardware-backed mechanism are future work.
+Bundle generation, exact file inventory and permissions, Compose mounts, certificate inspection, ESP32 package handling, transactional identity lifecycle, troubleshooting, recovery and positive/negative smoke tests are documented in the dedicated [MQTT operations runbook](mqtt-operations.md). Keeping procedures there prevents operational commands from obscuring this security model. The common firmware embeds no device-specific CA or credentials; its complete candidate is activated only after station, SNTP and authenticated TLS succeed. See also [Device provisioning](device-provisioning.md).
 
 ## Manual ESP32 verification
 
@@ -105,29 +33,8 @@ The BME280 telemetry path was then verified end to end through the collector, SQ
 
 ESP-MQTT currently uses its default keepalive because the firmware does not override it. Consequently, an offline Last Will after sudden power loss is not immediate: detection time depends on the client keepalive and broker behavior. An explicit keepalive value should be introduced only when an availability detection requirement has been defined and measured, not selected arbitrarily.
 
-This manual hardware result complements two separate automated controls: the firmware CI job compiles and inspects the embedded-CA branch, while the isolated security smoke test exercises broker TLS, authentication, authorization and application ingestion with container clients. GitHub Actions intentionally has no hardware-in-the-loop stage and does not perform the real ESP32 TLS handshake.
-
-## Credential lifecycle is deferred
-
-There is no operational command for adding, revoking or rotating one device after bundle generation. New initial identities can be selected with repeated `--device DEVICE_ID` arguments only while generating the complete bundle. `--force` replaces the entire marked bundle, including CA, server certificate and all client credentials; it is intentionally not presented as routine per-device rotation.
-
-Persistent Device Configuration, Provisioning and Credential Lifecycle is a future sprint. It must define device synchronization, secure storage, revocation, rotation and recovery before an operational lifecycle can be claimed. Do not manually edit the generated Dynamic Security database or paste passwords into tickets, shell history, logs or source control.
-
-## Troubleshooting
-
-| Symptom/category | Check |
-| --- | --- |
-| TLS certificate verification | CA path, CA file readability, complete chain and whether the configured host/IP exists in SAN |
-| TLS handshake | Client/server TLS support and minimum TLS 1.2; do not disable verification |
-| DNS resolution | `mqtt` works only inside Compose; the ESP32 needs a LAN-resolvable host or IP |
-| Authentication | Correct generated identity/password pair and matching complete bundle mounted by the broker |
-| Authorization / Not authorized | Username-derived device scope, exact topic and dedicated service role |
-| Broker unhealthy | Generated files and ownership, port `8883`, then `docker compose logs mqtt` |
-| Collector exits at startup | `MQTT_CLIENT_ENABLED`, TLS/auth pairing and readable mounted CA/password files |
-| Firmware reports invalid configuration | `mqtts://` URI, non-placeholder credentials and embedded CA generated before build |
-
-Never work around these failures with insecure certificate modes, hostname bypass, anonymous access or plaintext fallback.
+This Sprint 15 result is historical evidence for the TLS transport and contracts. The operator-provided Sprint 17 record separately covers the new provisioning, credential lifecycle and recovery flow on hardware. CI builds the credential-free image and exercises broker TLS/ACL with container clients; it has no hardware-in-the-loop stage.
 
 ## Intentional limits
 
-This sprint secures only MQTT. FastAPI and the dashboard still use unauthenticated HTTP with no reverse proxy, client passwords are locally generated files rather than an external secret store, and the ESP32 has build-time credentials rather than persistent secure provisioning. There is no per-device addition/rotation/revocation lifecycle, mTLS, automated credential rollout, hardened ingress, Internet exposure model or multi-host secret distribution. CI compiles the embedded-CA firmware branch but has no hardware-in-the-loop MQTT connection; the successful Sprint 15 ESP32 TLS test was performed manually. These limits must be resolved before a public deployment.
+FastAPI and the dashboard still use unauthenticated HTTP with no hardened reverse proxy. Client passwords remain locally generated files rather than a managed fleet secret store; device NVS lacks encryption, flash encryption and Secure Boot. There is no mTLS, automated remote rollout, Internet exposure model or multi-host secret distribution. The local provisioning page is HTTP protected by a unique WPA2 SoftAP, not application-layer HTTPS. CI has no hardware-in-the-loop MQTT connection. These limits must be resolved before a public deployment.

@@ -1,5 +1,7 @@
 #include "telemetry.h"
 
+#include <inttypes.h>
+
 #include "config.h"
 #include "device_health.h"
 #include "esp_log.h"
@@ -13,6 +15,7 @@
 static const char *TAG = "telemetry";
 
 static TaskHandle_t telemetry_task_handle = NULL;
+static uint32_t telemetry_interval_seconds;
 
 static const char *get_timestamp(char *buffer, size_t buffer_size)
 {
@@ -193,22 +196,28 @@ static void telemetry_task(void *parameters)
         telemetry_collect_and_publish();
 
         vTaskDelay(
-            pdMS_TO_TICKS(CONFIG_TELEMETRY_PUBLISH_PERIOD_MS)
+            pdMS_TO_TICKS(telemetry_interval_seconds * 1000U)
         );
     }
 }
 
-void telemetry_start(void)
+esp_err_t telemetry_start(const char *device_id, uint32_t interval_seconds)
 {
     if (telemetry_task_handle != NULL) {
         ESP_LOGW(TAG, "Telemetry task already running");
-        return;
+        return ESP_ERR_INVALID_STATE;
     }
+
+    esp_err_t configuration_result = telemetry_model_configure(device_id);
+    if (configuration_result != ESP_OK || interval_seconds < 1 || interval_seconds > 3600) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    telemetry_interval_seconds = interval_seconds;
 
     ESP_LOGI(
         TAG,
-        "Starting telemetry task with period %d ms",
-        CONFIG_TELEMETRY_PUBLISH_PERIOD_MS
+        "Starting telemetry task with period %" PRIu32 " seconds",
+        telemetry_interval_seconds
     );
 
     BaseType_t result = xTaskCreate(
@@ -223,5 +232,8 @@ void telemetry_start(void)
     if (result != pdPASS) {
         telemetry_task_handle = NULL;
         ESP_LOGE(TAG, "Failed to create telemetry task");
+        return ESP_ERR_NO_MEM;
     }
+
+    return ESP_OK;
 }

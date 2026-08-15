@@ -1,45 +1,9 @@
 menu "Connectivity Configuration"
 
-config WIFI_SSID
-    string "Wi-Fi SSID"
-    default ""
-
-config WIFI_PASSWORD
-    string "Wi-Fi Password"
-    default ""
-
 config WIFI_MAXIMUM_RETRY
     int "Wi-Fi maximum retry attempts"
     default 5
     range 1 20
-    
-config MQTT_BROKER_URI
-    string "Secure MQTT broker URI"
-    default "mqtts://<broker-host>:8883"
-
-config MQTT_BROKER_CA_CERT_PATH
-    string "Broker CA certificate path relative to firmware project"
-    default "local_secrets/mqtt_ca.pem"
-
-config MQTT_USERNAME
-    string "MQTT username"
-    default ""
-
-config MQTT_PASSWORD
-    string "MQTT password (stored only in local sdkconfig)"
-    default ""
-
-config MQTT_TOPIC
-    string "MQTT Topic"
-    default "industrial/telemetry"
-
-config MQTT_CLIENT_ID
-    string "MQTT Client ID"
-    default "industrial-edge-monitor"
-
-config DEVICE_ID
-    string "Application device ID"
-    default "edge-node-01"
 
 config MQTT_TOPIC_PREFIX
     string "Per-device MQTT topic prefix"
@@ -67,11 +31,6 @@ endmenu
 
 menu "Telemetry Configuration"
 
-config TELEMETRY_PUBLISH_PERIOD_MS
-    int "Telemetry publish period (ms)"
-    default 5000
-    range 1000 3600000
-
 config DEVICE_HEALTH_PUBLISH_PERIOD_MS
     int "Device health heartbeat period (ms)"
     default 60000
@@ -84,7 +43,7 @@ config DEVICE_HEALTH_STATE_POLL_PERIOD_MS
 
 endmenu
 
-menu "Sensor Configuration"
+menu "Sensor Hardware Configuration"
 
 config I2C_SDA_GPIO
     int "I2C SDA GPIO"
@@ -108,54 +67,31 @@ config BME280_I2C_ADDRESS
 
 endmenu
 
-menu "Machine Status Configuration"
+menu "Local Provisioning Safety Limits"
 
-choice MACHINE_STATUS_PROVIDER
-    prompt "Machine status provider"
-    default MACHINE_STATUS_PROVIDER_DISABLED
+config PROVISIONING_MAX_BODY_BYTES
+    int "Maximum provisioning request body"
+    default 8192
+    range 4096 12288
 
-config MACHINE_STATUS_PROVIDER_DISABLED
-    bool "Disabled"
+config PROVISIONING_SESSION_SECONDS
+    int "Authenticated web session lifetime"
+    default 900
+    range 300 3600
 
-config MACHINE_STATUS_PROVIDER_GPIO
-    bool "GPIO"
+config PROVISIONING_LOGIN_MAX_FAILURES
+    int "Login failures before temporary lockout"
+    default 5
+    range 3 10
 
-endchoice
+config PROVISIONING_LOGIN_LOCKOUT_SECONDS
+    int "Login lockout duration"
+    default 60
+    range 30 600
 
-if MACHINE_STATUS_PROVIDER_GPIO
-
-config MACHINE_STATUS_GPIO
-    int "Machine status input GPIO"
-    default 27
-    range 0 39
-
-choice MACHINE_STATUS_ACTIVE_LEVEL
-    prompt "Active level"
-    default MACHINE_STATUS_ACTIVE_HIGH
-
-config MACHINE_STATUS_ACTIVE_HIGH
-    bool "Active high"
-
-config MACHINE_STATUS_ACTIVE_LOW
-    bool "Active low"
-
-endchoice
-
-choice MACHINE_STATUS_PULL_MODE
-    prompt "Internal pull resistor"
-    default MACHINE_STATUS_PULL_NONE
-
-config MACHINE_STATUS_PULL_NONE
-    bool "None"
-
-config MACHINE_STATUS_PULL_UP
-    bool "Pull-up"
-
-config MACHINE_STATUS_PULL_DOWN
-    bool "Pull-down"
-
-endchoice
-
-endif
+config PROVISIONING_CANDIDATE_MAX_ATTEMPTS
+    int "Candidate boot attempts before rollback"
+    default 2
+    range 1 3
 
 endmenu

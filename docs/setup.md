@@ -1,6 +1,6 @@
 # Setup and deployment
 
-This document owns installation, configuration and end-to-end operating procedures. See [Docker and Compose](docker.md) for container internals and operational concepts, [Continuous Integration](ci.md) for GitHub Actions behavior, and [Architecture](architecture.md) for component relationships and data flow.
+This document owns installation, configuration and end-to-end operating procedures. See [Docker and Compose](docker.md) for container internals, [MQTT operations](mqtt-operations.md) for trust material and identity procedures, [Continuous Integration](ci.md) for GitHub Actions behavior, and [Architecture](architecture.md) for component relationships and data flow.
 
 ## Docker Compose deployment
 
@@ -23,7 +23,7 @@ cp .env.example .env
 scripts/generate-mqtt-security.sh --lan-host <docker-host-lan-hostname-or-ip>
 ```
 
-The template contains no credentials. The generator creates ignored local CA/server material and random per-client credentials without printing secrets. `.env`, `.local/`, SQLite files, caches and local firmware/frontend configuration are ignored by Git and excluded from image build contexts. Per-device lifecycle and rotation are not implemented; see [MQTT security](mqtt-security.md) before using an ESP32 or replacing a complete bundle.
+The template contains no credentials. The generator creates ignored local CA/server material and random per-client credentials without printing secrets. `.env`, `.local/`, `*.provisioning.json`, SQLite files, caches and local firmware/frontend configuration are ignored by Git and excluded from image build contexts. Per-device add/inspect/list/rotate/revoke uses the transactional workflow in [MQTT operations](mqtt-operations.md); it never edits `.env`.
 
 ### Configuration
 
@@ -59,7 +59,7 @@ Backend processes read configuration only through `backend.core.config.Settings`
 
 Development connectivity defaults are rejected when `Settings` is started as `production`; Compose therefore supplies `/data/telemetry.db`, internal broker hostname and mounted TLS/authentication material explicitly. Missing/unreadable files, partial credentials and inconsistent TLS settings fail before connection. The API does not enable an MQTT client and therefore receives no MQTT secret.
 
-`APP_ENV=production` makes TLS and authentication mandatory for enabled Python MQTT clients. It does not provide persistent ESP32 provisioning, API authentication or a hardened HTTPS ingress.
+`APP_ENV=production` makes TLS and authentication mandatory for enabled Python MQTT clients. Persistent ESP32 provisioning is a separate NVS/SoftAP control plane; this setting still does not provide API authentication or a hardened HTTPS ingress.
 
 Python settings above are runtime variables. `NEXT_PUBLIC_API_URL` is different: Next.js inserts it into browser JavaScript during `next build`. Changing it on an already-built container has no effect. Set it before `docker compose build` and rebuild the frontend whenever the public API address changes.
 
@@ -226,8 +226,7 @@ ESP-IDF 6.0.2 remains external to the repository:
 
 ```bash
 source ~/esp/esp-idf/export.sh
-idf.py -C firmware menuconfig
 idf.py -C firmware build
 ```
 
-Copy the generated public CA and configure the secure URI/device credentials as described in [firmware setup](firmware-setup.md). Hardware flashing and serial monitoring remain manual.
+Flash the common credential-free image, then provision the device through its local WPA2 SoftAP as described in [firmware setup](firmware-setup.md) and [Device provisioning](device-provisioning.md). Migration from the former table requires a controlled `erase-flash`; hardware flashing and serial monitoring remain manual. The Sprint 17 main hardware checklist is recorded as operator-provided evidence in the provisioning guide; it is not a CI result.

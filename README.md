@@ -25,7 +25,7 @@ ESP32 ──MQTTS──► Mosquitto ──MQTTS──► collector ──► SQ
 
 The API and collector reuse one production-like Python image. Mosquitto, both Python processes and the Next.js standalone server share a private Compose network. Only authenticated MQTT TLS `8883`, API `8000` and dashboard `3000` are published to the host.
 
-See [architecture](docs/architecture.md), the [Docker and Compose guide](docs/docker.md), the [CI guide](docs/ci.md), the [backend model](docs/backend.md) and the [firmware README](firmware/README.md) for component details.
+See [architecture](docs/architecture.md), the [Docker and Compose guide](docs/docker.md), the [MQTT operations runbook](docs/mqtt-operations.md), the [CI guide](docs/ci.md), the [backend model](docs/backend.md) and the [firmware README](firmware/README.md) for component details.
 
 ## Docker Compose quick start
 
@@ -125,12 +125,11 @@ The shared `.env` keeps MQTT disabled, so the local API never starts a client or
 
 ```bash
 source ~/esp/esp-idf/export.sh
-idf.py -C firmware menuconfig
 idf.py -C firmware build
 idf.py -C firmware -p /dev/ttyUSB0 flash monitor
 ```
 
-Copy the generated CA to the ignored `firmware/local_secrets/mqtt_ca.pem`, then configure an `mqtts://<LAN-host>:8883` URI and the device credentials in `menuconfig`. The URI host/IP must be present in the certificate SAN; it must not be `mqtt` or `localhost` from the ESP32. Never connect a 24 V industrial signal directly to an ESP32 GPIO; use suitable conditioning and isolation.
+The versioned baseline targets the verified 4 MiB ESP32 and builds one device-independent image. On a blank device, read the one-time setup secret from serial, join the WPA2 `IEM-Setup-*` network and open `http://192.168.4.1`. Wi-Fi and MQTT credentials, public broker CA, identity, telemetry cadence, machine GPIO and maintenance policy are then validated and stored in NVS. The operator-provided Sprint 17 hardware record covers the corrected phone path, provisioning, activation, rollback, credential lifecycle and reset/recovery flows. See [device provisioning](docs/device-provisioning.md) for that record, the destructive migration and local API, and [MQTT operations](docs/mqtt-operations.md) for broker/device procedures. Never connect a 24 V industrial signal directly to an ESP32 GPIO; use suitable conditioning and isolation.
 
 ## Quality gates
 
@@ -155,7 +154,7 @@ The GitHub Actions workflow defines separate backend, frontend, firmware and con
 
 ## Security boundary
 
-The supplied Compose path encrypts MQTT, verifies the broker certificate, requires a distinct username/password identity and enforces least-privilege broker authorization. It has no automatic plaintext fallback. API/dashboard authentication, HTTPS and a hardened ingress are still absent, and locally generated credentials are not a production secret-management, provisioning, per-device rotation or revocation system. Do not expose the stack directly to the public Internet. See [MQTT security](docs/mqtt-security.md).
+The supplied Compose path encrypts MQTT, verifies the broker certificate, requires a distinct username/password identity and enforces least-privilege broker authorization. Device identities can be added, rotated and revoked transactionally, and the ESP32 stores its active/candidate configuration in NVS. The local provisioning page uses authenticated HTTP only inside a unique WPA2 SoftAP; it is not production-grade end-to-end encryption. API/dashboard authentication, hardened HTTPS ingress, managed fleet secrets, Secure Boot and flash/NVS encryption remain absent. Do not expose the stack directly to the public Internet. See the [MQTT security model](docs/mqtt-security.md), [MQTT operations runbook](docs/mqtt-operations.md) and [device provisioning](docs/device-provisioning.md).
 
 ## Repository layout
 
@@ -169,4 +168,4 @@ tests/         Isolated backend tests
 compose.yaml   Reproducible single-host stack
 ```
 
-Latest completed milestone: **Sprint 16 — Runtime and Dependency Baseline Upgrade**. The next sprint is **Persistent Device Configuration, Provisioning and Credential Lifecycle**; API authentication, hardened HTTPS ingress, backup automation, multi-host storage and continuous delivery remain future work.
+Latest milestone: **Sprint 17 — Persistent Device Configuration, Local Web Provisioning and Credential Lifecycle** is locally complete: implementation, local automated verification and the operator-provided main hardware checklist are complete. The GitHub-hosted run for this unpushed revision remains an explicit external gate. API authentication, hardened HTTPS ingress, backup automation, multi-host storage and continuous delivery remain future work.

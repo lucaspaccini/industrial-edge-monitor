@@ -120,29 +120,25 @@ Configure the target once:
 
 ```bash
 idf.py set-target esp32
+rm -f sdkconfig.old
 ```
 
 This command generates the project configuration (`sdkconfig`) from `sdkconfig.defaults`.
+The generated `sdkconfig.old` is not a supported backup and may retain historical credentials; delete it immediately as shown above.
 
-## Secure MQTT material
+## Device-independent firmware and provisioning material
 
-From the repository root, generate local broker material with every LAN hostname/IP that the ESP32 may use:
+From the repository root, generate broker material with every LAN hostname/IP that the ESP32 may use, then create a device package:
 
 ```bash
 scripts/generate-mqtt-security.sh --lan-host 192.168.1.20
-mkdir -p firmware/local_secrets
-cp .local/mqtt-security/ca/ca.crt firmware/local_secrets/mqtt_ca.pem
+scripts/manage-mqtt-device.py add edge-node-03 \
+  --broker-uri mqtts://192.168.1.20:8883
 ```
 
-Open `idf.py menuconfig` and configure `Industrial Edge Monitor > Connectivity Configuration`:
+Do not copy that package or any CA/password into the firmware source. Build the same binary for all devices. On a blank ESP32, read the newly generated setup secret from serial once, join `IEM-Setup-*`, open `http://192.168.4.1`, authenticate, import the MQTT values, enter Wi-Fi locally and stage the complete configuration.
 
-- `MQTT_BROKER_URI`: `mqtts://192.168.1.20:8883` (or another exact SAN value);
-- `MQTT_BROKER_CA_CERT_PATH`: `local_secrets/mqtt_ca.pem`;
-- `MQTT_USERNAME`: device identity, normally the same as `DEVICE_ID`;
-- `MQTT_PASSWORD`: the corresponding generated password;
-- `MQTT_CLIENT_ID`: a session identifier distinct from both values above.
-
-`mqtt` is a Compose-only DNS name and `localhost` refers to the ESP32 itself. The LAN host/IP in the URI must be included in the server certificate SAN; hostname verification remains enabled. The public CA, local `sdkconfig` and credentials are ignored by Git. The firmware build embeds the CA and credentials, which is suitable only for the current local build-time workflow; secure persistent provisioning is future work.
+`mqtt` is a Compose-only DNS name and `localhost` refers to the ESP32 itself. Use the Docker host LAN hostname/IP, include it in the broker certificate SAN and specify port `8883`. Hostname verification remains enabled. `.local/`, provisioning packages and local `sdkconfig` are ignored by Git and Docker contexts.
 
 Do not bypass certificate verification or replace `mqtts://` with plaintext after an error. See [MQTT security](mqtt-security.md) for bundle generation, trust configuration, lifecycle limits and diagnostics.
 
@@ -156,9 +152,9 @@ Build the firmware:
 idf.py build
 ```
 
-The versioned `firmware/dependencies.lock` pins the ESP-MQTT managed component and records ESP-IDF 6.0.2/ESP32 resolution for reproducible local and CI builds. `managed_components/` remains generated and ignored.
+The versioned `firmware/dependencies.lock` pins ESP-MQTT and the ESP-IDF 6 replacement `espressif/cjson`, and records ESP-IDF 6.0.2/ESP32 resolution. `managed_components/` remains generated and ignored. `sdkconfig.defaults` selects a 4 MiB flash header and the custom `partitions.csv`; the local `sdkconfig` is not the source of truth.
 
-A normal local build with no CA file configured can compile the no-CA branch; `mqtt_init()` then fails closed at runtime instead of falling back to plaintext. The GitHub Actions firmware job follows a different path: it creates a one-run CA private key under `$RUNNER_TEMP`, copies only its public certificate to the ignored `firmware/local_secrets/mqtt_ca.pem`, and verifies both `MQTT_BROKER_CA_EMBEDDED=1` and the embedded-certificate target. This exercises `target_add_binary_data`, the linker symbols and the `broker.verification.certificate` branch at build time. CI does not connect a physical ESP32 to a broker and therefore does not replace the successful manual Sprint 15 TLS test on real hardware.
+CI and local builds contain no device-specific trust anchor or credentials. CI validates the table and fails when the binary exceeds the 3 MiB application partition; it does not connect physical hardware.
 
 Expected result:
 
@@ -170,13 +166,25 @@ Project build complete.
 
 # Flash
 
-Flash the firmware to the ESP32:
+For an already migrated device, flash the firmware normally:
 
 ```bash
 idf.py -p /dev/ttyUSB0 flash
 ```
 
 Replace `/dev/ttyUSB0` with the correct serial port if necessary.
+
+The first migration from the former 2 MiB/default layout is destructive and must not claim to preserve old NVS:
+
+```bash
+idf.py set-target esp32
+rm -f sdkconfig.old
+idf.py build
+idf.py -p /dev/ttyUSB0 erase-flash
+idf.py -p /dev/ttyUSB0 flash monitor
+```
+
+See [Device provisioning](device-provisioning.md) for the complete 4 MiB layout and physical checklist.
 
 Expected result:
 
@@ -275,11 +283,15 @@ Verify that the USB cable supports data transfer.
 
 ## MQTT configuration rejected
 
-Confirm the URI uses `mqtts://`, the placeholder has been replaced, username/password are non-empty, and the configured CA file existed before the build. A local build without a configured CA may compile successfully, but `mqtt_init()` deliberately rejects that configuration at runtime. GitHub Actions does not use this no-CA path: it generates an ephemeral CA, copies the public certificate to `firmware/local_secrets/mqtt_ca.pem`, and verifies `MQTT_BROKER_CA_EMBEDDED=1` plus certificate incorporation. This remains a build check rather than an automated hardware TLS connection.
+Confirm the candidate uses `mqtts://host:port`, username equals `device_id`, client ID is distinct, password is non-empty and the public CA parses as PEM. The firmware never falls back to plaintext and never attempts MQTT from `UNPROVISIONED`.
+
+## SoftAP page incorrectly rejected
+
+The first Sprint 17 phone test reproduced `provisioning is available only through the SoftAP` at `http://192.168.4.1`. ESP-IDF 6.0.2 can expose the accepted IPv4 connection as an IPv4-mapped IPv6 local endpoint when its dual-stack HTTP listener is active. The firmware now classifies a full `sockaddr_storage` against the live SoftAP netif IP instead of interpreting it as `sockaddr_in` or authorizing a hard-coded address. The correction is covered automatically, and the operator subsequently reported the corrected phone/SoftAP path as passed on hardware; the detailed operator-provided record is in [Device provisioning](device-provisioning.md#operator-provided-hardware-verification-record).
 
 ## TLS certificate or hostname failure
 
-Verify that the firmware contains the CA which signed the active broker certificate and that the URI hostname/IP appears exactly in its SAN. Regenerate and redistribute the trust material instead of enabling an insecure mode.
+Verify that the active NVS configuration contains the public CA which signed the broker certificate and that the URI hostname/IP appears exactly in its SAN. Rotate and reprovision trust material instead of enabling an insecure mode.
 
 # Firmware Configuration
 
@@ -299,4 +311,4 @@ Industrial Edge Monitor
 └── Telemetry Configuration
 ```
 
-Configuration values are stored in the `sdkconfig` file and exposed to the firmware through `sdkconfig.h`.
+Only non-secret hardware defaults, topic/health constants and provisioning limits are stored in Kconfig. Device-specific runtime configuration lives in the `iem_config` NVS namespace behind `device_config`; Wi-Fi, MQTT and providers never read NVS directly.

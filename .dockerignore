@@ -3,6 +3,7 @@
 .env
 .env.*
 .local
+*.provisioning.json
 
 .venv
 venv

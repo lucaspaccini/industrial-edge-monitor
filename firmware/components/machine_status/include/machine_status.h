@@ -3,6 +3,7 @@
 #include <stdbool.h>
 
 #include "esp_err.h"
+#include "device_config.h"
 
 typedef enum
 {
@@ -11,7 +12,7 @@ typedef enum
     MACHINE_STATUS_UNKNOWN
 } machine_status_t;
 
-esp_err_t machine_status_init(void);
+esp_err_t machine_status_init(const device_config_t *configuration);
 
 bool machine_status_is_enabled(void);
 

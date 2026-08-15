@@ -18,9 +18,7 @@ usage() {
 
 validate_device_id() {
   local device_id="$1"
-  if ! python3 -c \
-      'import sys; value=sys.argv[1]; raise SystemExit(not (value and len(value) <= 63 and all(character.isalnum() or character in "._-" for character in value)))' \
-      "$device_id"; then
+  if ! python3 "$repo_root/scripts/mqtt_device_common.py" "$device_id" >/dev/null; then
     echo "Invalid device ID: $device_id" >&2
     exit 2
   fi
@@ -102,13 +100,6 @@ done
 declare -A device_seen=()
 for device_id in "${devices[@]}"; do
   validate_device_id "$device_id"
-
-  for reserved_identity in "${reserved_identities[@]}"; do
-    if [[ "$device_id" == "$reserved_identity" ]]; then
-      echo "Reserved service identity cannot be used as a device ID: $device_id" >&2
-      exit 2
-    fi
-  done
 
   if [[ -n "${device_seen[$device_id]+present}" ]]; then
     echo "Duplicate device ID: $device_id" >&2
@@ -307,7 +298,8 @@ chmod 0600 \
 docker run --rm --entrypoint sh \
   --volume "$staging_dir:/work" \
   "$mosquitto_image" \
-  -c 'chown 1883:1883 /work/server/server.key /work/mosquitto/dynamic-security.json /work/clients/healthcheck.container.conf && chmod 0400 /work/server/server.key /work/clients/healthcheck.container.conf && chmod 0600 /work/mosquitto/dynamic-security.json && chown 10001:10001 /work/clients/collector.password && chmod 0400 /work/clients/collector.password'
+  -c 'chown "1883:$1" /work/server/server.key /work/mosquitto/dynamic-security.json /work/clients/healthcheck.container.conf && chmod 0440 /work/server/server.key /work/clients/healthcheck.container.conf && chmod 0660 /work/mosquitto/dynamic-security.json && chown "10001:$1" /work/clients/collector.password && chmod 0440 /work/clients/collector.password' \
+  sh "$local_gid"
 
 for relative_path in "${required_files[@]}"; do
   if [[ ! -f "$staging_dir/$relative_path" ]]; then

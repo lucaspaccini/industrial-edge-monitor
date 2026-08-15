@@ -600,3 +600,72 @@ The frontend now has one locally reproducible, CI-configured and container-verif
 ## Next Sprint
 
 Persistent Device Configuration, Provisioning and Credential Lifecycle
+
+---
+
+# Sprint 17 — Persistent Device Configuration, Local Web Provisioning and Credential Lifecycle
+
+## Completed
+
+Implementation, deterministic local verification and the operator-provided main ESP32 hardware checklist are complete. GitHub Actions is configured and reproduced locally; the first GitHub-hosted run of this unpushed revision remains an explicit external repository gate and is not claimed as verified.
+
+## Goal
+
+Build one device-independent ESP-IDF image that stores validated, versioned runtime configuration in NVS; provides protected local SoftAP provisioning and bounded APSTA maintenance; exposes redacted status and bounded live diagnostics; and supports transactional per-device MQTT add, rotation and revocation without changing telemetry, health, availability, topic, backend API, database or dashboard contracts.
+
+## Completed Work
+
+- Added a typed `device_config` owner for NVS active, candidate, rollback metadata and unique setup secret; Wi-Fi, MQTT, telemetry and machine status no longer read device credentials from Kconfig.
+- Added explicit provisioning states and boot orchestration. Unconfigured devices start only WPA2 SoftAP/local HTTP, while configured maintenance uses APSTA and closes by changing to STA without stopping the station.
+- Added complete-candidate staging, bounded boot attempts and activation only after station IP, valid SNTP time and authenticated MQTT TLS; failures retain the previous active configuration and record a redacted rollback reason.
+- Added an authenticated SoftAP-only HTTP API with expiring HttpOnly/SameSite session cookie, CSRF, login lockout, body limits, strong factory-reset confirmation and redacted responses.
+- Added a bounded thread-safe diagnostic sink that preserves serial logs, copies at most eight records per request, reports cursor loss/overwrites and exposes one authenticated asynchronous SSE worker with generation-matched shutdown waits and UI filters.
+- Removed large runtime models from task stacks: candidate activation and HTTP parsing use checked heap allocations with explicit secret clearing; target sizes and task stack high-water marks are observable.
+- Added explicit serial full-NVS recovery without selecting an unverified GPIO; NVS initialization failures now remain fail-closed and never trigger an automatic erase.
+- Added a stable versioned NVS storage envelope and fixed-width serializer for configuration and metadata instead of persisting ABI-dependent runtime structs.
+- Added documented hardware entropy around first-boot setup-secret generation and synchronization for provisioning/session/SSE state and MQTT error snapshots.
+- Added transactional MQTT device administration and mode-`0600` versioned packages without Wi-Fi credentials, password/hash output from list/inspect or `.env` mutation.
+- Replaced the former 2 MiB/default partition baseline with a versioned 4 MiB, no-OTA layout: 192 KiB NVS, 3 MiB factory app and 768 KiB deliberate unallocated reserve.
+- Added deterministic host tests for state/concurrency, diagnostic batching/loss, stable storage and interrupted commits, entropy ordering, asynchronous-source guards and lifecycle tooling, plus a CI layout/application-capacity gate.
+- Replaced cross-task C11 busy-wait locks with static FreeRTOS mutexes, preserving blocking mutual exclusion in the host harness through pthread-backed semaphore stubs.
+- Hardened setup-secret boot recovery, revision-bound candidate activation, exact-worker SSE completion, session-bound EventSource reconnection, provisioning secret-buffer cleanup and dual-stack SoftAP local-endpoint classification after the first phone test reproduced an IPv4-mapped IPv6 rejection.
+- Guarded station RSSI collection so disconnected and unprovisioned states retain JSON `null` without calling an invalid ESP-IDF station API or creating a fault.
+- Cleared prior configuration text, file selection and masked password inputs on unprovisioned state, session replacement, logout, factory reset and relevant page failures.
+- Split the MQTT security model from a code-derived operations runbook covering trust material, exact file ownership/mounts, identity lifecycle, safe rotation, certificate checks, recovery and smoke testing.
+
+## Decisions
+
+- Use HTTP only inside the unique WPA2 SoftAP for this controlled local workflow; it is authenticated but not application-layer encrypted or production-grade.
+- Keep the web service unavailable from the station side and stop it after maintenance; MQTT lifecycle remains coupled only to station/IP state.
+- Store complete versioned, explicitly serialized blobs instead of partial keys or raw runtime structs so candidates cannot combine fields from different revisions and future readers can inspect the format before decoding. Retain public CA and credentials in ordinary NVS for now; physical extraction resistance is explicitly deferred with Secure Boot, flash encryption and NVS encryption.
+- Require an explicit port in `mqtts://host:port`, username equality with `device_id`, a distinct client ID and a parseable public CA before a candidate can be committed.
+- Use Server-Sent Events for one-way live logs because the UI never needs a command channel; no shell or arbitrary execution endpoint is introduced.
+- Use ESP-IDF asynchronous HTTP requests and a dedicated worker for SSE so status/config/logout remain responsive; every worker exit converges on exactly-once request completion. Each stop attempt waits at most four seconds for the exact active worker generation, while exceptional cleanup retries after SoftAP removal have no fixed retry ceiling.
+- Feed `mosquitto_passwd` interactively through stdin so the generated device password is absent from host/container argv and suppressed output.
+- Keep OTA out of scope and leave 768 KiB unallocated rather than silently consuming the full 4 MiB physical flash.
+- Treat the layout migration as destructive: old NVS is not claimed preservable and requires `erase-flash` plus a complete flash.
+- Treat native IPv6 provisioning as unimplemented and fail closed; accept only the live SoftAP IPv4 endpoint in either native IPv4 or IPv4-mapped IPv6 form, never a hard-coded authorization address or client address alone.
+
+## Verification
+
+- Physical flash identification supplied by the operator: ESP32-D0WD-V3 revision 3.1, 4 MiB, 3.3 V.
+- Clean ESP-IDF 6.0.2 build from versioned defaults passed; both bootloader and application headers report 4 MiB.
+- Generated table passed ESP-IDF and repository layout checks with non-overlapping aligned offsets.
+- Application image after final hardening: 1,022,592 bytes in a 3,145,728-byte partition, leaving 2,123,136 bytes (67%) application headroom; 786,432 bytes remain unallocated at the end of flash.
+- Target debug types report `device_config_t` as 4,876 bytes, one diagnostic record as 208 bytes and the eight-record batch as 1,720 bytes; the batch also has a 2 KiB compile-time ceiling.
+- Full pytest suite: 141 passed, including compiled production C for blocking mutex synchronization, stable storage/validation, setup-secret failure modes, revision-bound activation and interrupted candidate/metadata/active commits, activation/rollback, boot-attempt limits, redaction, dual-stack endpoint classification, concurrent state/error access, diagnostic batching/wrap/loss, entropy ordering, generation-bound EventSource authorization and deterministic exact-worker SSE lifecycle interleavings, plus flash-layout rejection, disconnected-state RSSI gating and provisioning secret/DOM-cleanup guards.
+- Frontend: one test, lint and direct TypeScript check passed under Node.js 24.19.0; a no-cache container build completed the Next.js 16.3.0 TypeScript, static generation and standalone production build. Direct host Turbopack remains blocked by this execution sandbox's local-bind policy, not by a compilation error.
+- Containers: `docker compose config --quiet` and image builds passed; isolated secure smoke passed TLS/hostname/authentication/ACL negatives, telemetry, health, availability, Last Will, collector, SQLite persistence, API and frontend checks.
+- MQTT lifecycle smoke passed real broker add, rotation with rejection of the prior password, and revocation with publish rejection.
+- Repository and image scans found no tracked or embedded `.env`, private key, provisioning package, local `sdkconfig`, database, `node_modules` or generated build tree; `git diff --check` passed.
+- GitHub Actions is configured for deterministic checks and locally reproduced; no external run is claimed before push.
+- Operator-provided manual hardware verification passed for the 4 MiB layout, first boot and one-time secret, corrected phone/SoftAP path, web controls/redaction, status/log/SSE, provisioning and gated activation, NVS persistence, interrupted validation and rollback, APSTA-to-STA continuity, machine GPIO, MQTT rotation/revocation/restoration, web factory reset, confirmed serial full-NVS recovery and complete reprovisioning.
+- Unreadable-NVS-metadata fault injection passed in deterministic automated tests only; no physical fault-injection result is claimed.
+
+## Residual External Gate
+
+The current unpushed revision has no GitHub-hosted status check. The workflow is configured and its commands are reproduced locally, but the GitHub-hosted run must be observed after a future push. This does not reopen the completed operator-provided main hardware checklist.
+
+## Takeaway
+
+Sprint 17 now has a controlled provisioning architecture, reproducible 4 MiB firmware baseline, locally verified implementation and an operator-accepted main hardware path. Repository-hosted CI remains a release gate for the future pushed revision, not evidence that is inferred from local execution.
