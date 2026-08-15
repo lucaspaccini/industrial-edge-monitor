@@ -337,7 +337,7 @@ Passing these commands locally increases confidence and shortens feedback time. 
 
 ## Current limitations and future evolution
 
-The Sprint 17 workflow changes are configured and locally reproduced. Their first positive GitHub Actions run after push remains the external repository gate. The separately recorded operator hardware results in [Device provisioning](device-provisioning.md#operator-provided-hardware-verification-record) are not CI results.
+The Sprint 17 commit was published and, according to the operator-provided result, GitHub Actions completed without errors: backend tests, frontend checks, firmware build, and container build plus smoke test all passed. This GitHub-hosted result is distinct from the local automated checks and from the separately recorded manual hardware evidence in [Device provisioning](device-provisioning.md#operator-provided-hardware-verification-record). No run ID, commit SHA, duration or additional output is recorded because none was supplied.
 
 Future CI and release work includes:
 

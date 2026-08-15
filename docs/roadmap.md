@@ -116,7 +116,7 @@ Goal: replace the simulator with a modular embedded firmware running on the ESP3
 - [x] Persistent pending/active rule state
 - [x] Persistent active/resolved alert lifecycle
 - [x] Dwell time, hysteresis and out-of-order sample protection
-- [x] Sprint 17 — Persistent Device Configuration, Local Web Provisioning and Credential Lifecycle (locally complete; GitHub-hosted run for the unpushed revision remains pending)
+- [x] Sprint 17 — Persistent Device Configuration, Local Web Provisioning and Credential Lifecycle (Completed)
   - [x] Versioned NVS active/candidate/rollback model and device-independent firmware
   - [x] Stable fixed-width NVS storage envelope with fail-closed confirmed recovery
   - [x] Authenticated WPA2 SoftAP provisioning with dual-stack local-endpoint classification, bounded APSTA maintenance and batched asynchronous RAM diagnostics
@@ -127,7 +127,7 @@ Goal: replace the simulator with a modular embedded firmware running on the ESP3
   - [x] Versioned 4 MiB no-OTA flash layout and CI capacity gate
   - [x] Operator-provided main hardware checklist: 4 MiB layout, first boot, phone/SoftAP, provisioning, activation/rollback, APSTA, GPIO, credential lifecycle and reset/recovery
   - [x] Full-NVS serial recovery on hardware; unreadable-metadata fault injection remains automatic-only
-  - [ ] First GitHub-hosted run of this unpushed revision
+  - [x] Published Sprint 17 commit verified by GitHub Actions: backend, frontend, firmware and container jobs passed
 - [x] Secure MQTT communication with broker TLS and hostname verification
 - [x] Per-client MQTT authentication and least-privilege authorization
 - [ ] Telemetry buffering during connectivity outages

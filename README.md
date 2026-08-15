@@ -168,4 +168,4 @@ tests/         Isolated backend tests
 compose.yaml   Reproducible single-host stack
 ```
 
-Latest milestone: **Sprint 17 — Persistent Device Configuration, Local Web Provisioning and Credential Lifecycle** is locally complete: implementation, local automated verification and the operator-provided main hardware checklist are complete. The GitHub-hosted run for this unpushed revision remains an explicit external gate. API authentication, hardened HTTPS ingress, backup automation, multi-host storage and continuous delivery remain future work.
+Latest completed milestone: **Sprint 17 — Persistent Device Configuration, Local Web Provisioning and Credential Lifecycle**. Local automated verification passed, the operator-provided main hardware checklist passed, and the operator reports that the published Sprint 17 commit completed all GitHub Actions jobs successfully. API authentication, hardened HTTPS ingress, backup automation, multi-host storage and continuous delivery remain future work.

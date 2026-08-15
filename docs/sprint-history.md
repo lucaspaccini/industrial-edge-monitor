@@ -607,7 +607,7 @@ Persistent Device Configuration, Provisioning and Credential Lifecycle
 
 ## Completed
 
-Implementation, deterministic local verification and the operator-provided main ESP32 hardware checklist are complete. GitHub Actions is configured and reproduced locally; the first GitHub-hosted run of this unpushed revision remains an explicit external repository gate and is not claimed as verified.
+Sprint 17 is complete. Implementation and deterministic local verification passed, the operator-provided main ESP32 hardware checklist passed, and the operator reports that the published Sprint 17 commit completed GitHub Actions without errors.
 
 ## Goal
 
@@ -648,7 +648,8 @@ Build one device-independent ESP-IDF image that stores validated, versioned runt
 
 ## Verification
 
-- Physical flash identification supplied by the operator: ESP32-D0WD-V3 revision 3.1, 4 MiB, 3.3 V.
+### Local Automated Verification
+
 - Clean ESP-IDF 6.0.2 build from versioned defaults passed; both bootloader and application headers report 4 MiB.
 - Generated table passed ESP-IDF and repository layout checks with non-overlapping aligned offsets.
 - Application image after final hardening: 1,022,592 bytes in a 3,145,728-byte partition, leaving 2,123,136 bytes (67%) application headroom; 786,432 bytes remain unallocated at the end of flash.
@@ -658,14 +659,23 @@ Build one device-independent ESP-IDF image that stores validated, versioned runt
 - Containers: `docker compose config --quiet` and image builds passed; isolated secure smoke passed TLS/hostname/authentication/ACL negatives, telemetry, health, availability, Last Will, collector, SQLite persistence, API and frontend checks.
 - MQTT lifecycle smoke passed real broker add, rotation with rejection of the prior password, and revocation with publish rejection.
 - Repository and image scans found no tracked or embedded `.env`, private key, provisioning package, local `sdkconfig`, database, `node_modules` or generated build tree; `git diff --check` passed.
-- GitHub Actions is configured for deterministic checks and locally reproduced; no external run is claimed before push.
-- Operator-provided manual hardware verification passed for the 4 MiB layout, first boot and one-time secret, corrected phone/SoftAP path, web controls/redaction, status/log/SSE, provisioning and gated activation, NVS persistence, interrupted validation and rollback, APSTA-to-STA continuity, machine GPIO, MQTT rotation/revocation/restoration, web factory reset, confirmed serial full-NVS recovery and complete reprovisioning.
 - Unreadable-NVS-metadata fault injection passed in deterministic automated tests only; no physical fault-injection result is claimed.
 
-## Residual External Gate
+### Operator-Provided Manual Hardware Verification
 
-The current unpushed revision has no GitHub-hosted status check. The workflow is configured and its commands are reproduced locally, but the GitHub-hosted run must be observed after a future push. This does not reopen the completed operator-provided main hardware checklist.
+- Physical flash identification supplied by the operator: ESP32-D0WD-V3 revision 3.1, 4 MiB, 3.3 V.
+- Manual hardware verification passed for the 4 MiB layout, first boot and one-time secret, corrected phone/SoftAP path, web controls/redaction, status/log/SSE, provisioning and gated activation, NVS persistence, interrupted validation and rollback, APSTA-to-STA continuity, machine GPIO, MQTT rotation/revocation/restoration, web factory reset, confirmed serial full-NVS recovery and complete reprovisioning.
+- This evidence was supplied by the operator and remains distinct from local automation and CI. Unreadable-NVS-metadata fault injection was not executed physically.
+
+### GitHub-Hosted Verification
+
+- The operator reports that the Sprint 17 commit was published and GitHub Actions completed without errors.
+- Backend tests: passed.
+- Frontend checks: passed.
+- Firmware build: passed.
+- Container build and smoke test: passed.
+- No run ID, commit SHA, duration or additional workflow output is recorded here because none was supplied.
 
 ## Takeaway
 
-Sprint 17 now has a controlled provisioning architecture, reproducible 4 MiB firmware baseline, locally verified implementation and an operator-accepted main hardware path. Repository-hosted CI remains a release gate for the future pushed revision, not evidence that is inferred from local execution.
+Sprint 17 closes with a controlled provisioning architecture, reproducible 4 MiB firmware baseline, passed local automation, an operator-accepted hardware path and a successful GitHub-hosted verification of the published commit.

@@ -135,6 +135,8 @@ The following main Sprint 17 checks were reported as passed by the operator on t
 
 Unreadable-NVS-metadata fail-closed behavior is covered by deterministic automated fault injection; it was **not** reported as a physical fault-injection test. The final RSSI disconnected-state guard and page stale-DOM cleanup are automatically covered and locally built after the hardware run; they do not add a claim of a further physical test.
 
+The verification sources remain separate: local automated tests/builds are recorded in [Sprint history](sprint-history.md#local-automated-verification), this section records the operator-provided physical checks, and the operator reports that the published Sprint 17 commit subsequently passed all GitHub Actions jobs for backend, frontend, firmware and container build/smoke. No CI run identifier, commit SHA, duration or unsupplied output is inferred.
+
 ## Explicit limits
 
 No BLE provisioning, captive portal, OTA, permanent station-LAN web server, remote shell, mTLS, API/dashboard authentication, Internet configuration, Secure Boot, flash/NVS encryption, cloud secret store, fleet manager or second-device rollout is introduced. AP and station share one ESP32 radio; in APSTA the SoftAP follows the station channel, which can briefly disrupt a phone during channel changes.
