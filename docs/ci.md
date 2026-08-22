@@ -229,11 +229,12 @@ The job delegates the complete integration sequence to `scripts/compose-security
 9. rejects an untrusted CA and a server-hostname mismatch;
 10. rejects cross-device publish, global device subscription and collector publish attempts;
 11. accepts authenticated device telemetry over TLS and verifies its exact API record;
-12. verifies retained health/availability and an offline Last Will;
-13. verifies the dedicated legacy simulator identity;
-14. recreates API and collector and requires the same telemetry ID and shared volume;
-15. rejects sensitive key/password markers in service logs;
-16. removes only the isolated containers, network, volumes and temporary security directory when the script exits.
+12. publishes a coercion-prone invalid payload and verifies both collector rejection and the continued absence of a database/API row;
+13. verifies retained health/availability and an offline Last Will;
+14. verifies the dedicated legacy simulator identity;
+15. recreates API and collector and requires the same telemetry ID and shared volume;
+16. rejects sensitive key/password markers in service logs;
+17. removes only the isolated containers, network, volumes and temporary security directory when the script exits.
 
 On failure, the trap first prints `docker compose ps` and the project logs, then runs:
 
@@ -247,7 +248,14 @@ Checking the exact telemetry ID is stronger than checking field equality alone. 
 
 ## Smoke test classification
 
-The container job is an integration test of the assembled four-service stack and a security smoke test of the MQTT path. It verifies image construction, startup dependencies, authenticated TLS health checks, selected negative TLS/authentication/authorization cases, MQTT ingestion, retained state/Last Will, collector processing, shared SQLite access, API retrieval and persistence across container recreation.
+The job then runs the independent device-lifecycle smoke and
+`scripts/multi-device-demo-smoke.sh`. The latter creates a second isolated
+Compose project, opts into `edge-node-02`, and proves two-device registry,
+history, statistics, health and availability; alert isolation; SIGKILL/LWT
+offline isolation; and restart recovery. Each script owns and removes only its
+unique temporary broker state, network, volumes and credentials.
+
+The container job is an integration test of the assembled stack and a security smoke test of the MQTT path. It verifies image construction, startup dependencies, authenticated TLS health checks, selected negative TLS/authentication/authorization cases, strict rejection without persistence, MQTT ingestion, retained state/Last Will, collector processing, shared SQLite access, API retrieval, multi-device isolation and persistence across container recreation.
 
 It is not a complete system acceptance, penetration or public-deployment test. It does not verify:
 
@@ -312,6 +320,8 @@ Validate, build and start the container stack from the repository root:
 docker compose config --quiet
 docker compose build
 scripts/compose-security-smoke.sh
+scripts/mqtt-device-lifecycle-smoke.sh
+scripts/multi-device-demo-smoke.sh
 ```
 
 The script generates temporary credentials, uses a unique Compose project and isolated volumes, and cleans its resources. It does not reuse development data or `.local/mqtt-security`. The detailed procedure and cleanup boundary are in [Docker and Docker Compose](docker.md#smoke-test).

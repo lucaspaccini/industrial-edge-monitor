@@ -74,6 +74,14 @@ esp_err_t telemetry_model_create(telemetry_t *telemetry)
             sensor_data.temperature,
             sensor_data.humidity
         );
+        esp_err_t invalidate_result = sensor_invalidate();
+        if (invalidate_result != ESP_OK) {
+            ESP_LOGW(
+                TAG,
+                "Sensor cleanup deferred until next cycle: %s",
+                esp_err_to_name(invalidate_result)
+            );
+        }
         return validation_result;
     }
 

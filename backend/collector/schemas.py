@@ -1,9 +1,9 @@
 from datetime import datetime
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BeforeValidator, BaseModel, ConfigDict, Field, field_validator
 
-from backend.core.validation import validate_device_id
+from backend.core.validation import validate_device_id, validate_device_timestamp
 
 
 DeviceId = str
@@ -25,15 +25,22 @@ StrictNonNegativeInt = Annotated[int, Field(strict=True, ge=0)]
 StrictFiniteInt = Annotated[int, Field(strict=True)]
 StrictFiniteFloat = Annotated[float, Field(strict=True, allow_inf_nan=False)]
 MetricValue = StrictFiniteInt | StrictFiniteFloat | None
+DeviceTimestamp = Annotated[datetime, BeforeValidator(validate_device_timestamp)]
+Temperature = Annotated[
+    float, Field(strict=True, ge=-40.0, le=85.0, allow_inf_nan=False)
+]
+Humidity = Annotated[
+    float, Field(strict=True, ge=0.0, le=100.0, allow_inf_nan=False)
+]
 
 
 class TelemetryMessage(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     device_id: DeviceId
-    timestamp: datetime
-    temperature: float = Field(ge=-40.0, le=85.0)
-    humidity: float = Field(ge=0.0, le=100.0)
+    timestamp: DeviceTimestamp
+    temperature: Temperature
+    humidity: Humidity
     machine_status: MachineStatus
 
     @field_validator("device_id")
@@ -47,7 +54,7 @@ class ComponentHealthMessage(BaseModel):
 
     status: Literal["healthy", "degraded", "fault", "unknown"]
     error_code: DiagnosticErrorCode
-    updated_at: datetime | None
+    updated_at: DeviceTimestamp | None
 
 
 class HealthMessage(BaseModel):
@@ -55,7 +62,7 @@ class HealthMessage(BaseModel):
 
     schema_version: Literal[1]
     device_id: DeviceId
-    timestamp: datetime | None
+    timestamp: DeviceTimestamp | None
     status: Literal["healthy", "degraded"]
     availability: Literal["online", "offline"]
     components: dict[str, ComponentHealthMessage]

@@ -679,3 +679,99 @@ Build one device-independent ESP-IDF image that stores validated, versioned runt
 ## Takeaway
 
 Sprint 17 closes with a controlled provisioning architecture, reproducible 4 MiB firmware baseline, passed local automation, an operator-accepted hardware path and a successful GitHub-hosted verification of the published commit.
+
+---
+
+# Sprint 18 — Portfolio Completion, Multi-Device Demonstration and Final Validation
+
+## Status
+
+**SPRINT 18 IN PROGRESS**
+
+Sprint 18 software and local gates are implemented and verified. Operator-provided demo and physical BME280 evidence dated 22 August 2026 are PASS, as are all four required application screenshots. Final portfolio closure remains pending GitHub-hosted CI and its real green-run screenshot.
+
+Remaining evidence:
+
+- successful GitHub-hosted workflow for the future pushed Sprint 18 revision;
+- real `docs/images/portfolio/github-actions-green.png` captured only after that run is verified.
+
+No tag, GitHub release, commit or push was created. `PORTFOLIO COMPLETE` and maintenance mode are not yet declared.
+
+## Goal and boundary
+
+Package the existing system as professional evidence, demonstrate its real multi-device contract, close verified validation gaps and stop product expansion. The result remains a portfolio-grade, single-host connected-device reference platform, not SaaS, multi-tenancy, fleet management or a generalized cloud product.
+
+## Completed work
+
+- Replaced collector timestamp coercion with one reusable, lossless device-timestamp validator. Non-null input must match `YYYY-MM-DDTHH:MM:SS[.fraction](Z|±HH:MM)` exactly; `T`, uppercase `Z` or an hours-and-minutes offset are mandatory, and a fraction may contain only zeros. The lexical check precedes parsing, including digits beyond microseconds; UTC normalization is checked again for zero microseconds and persists as canonical `YYYY-MM-DDTHH:MM:SSZ`. Health and component timestamps reuse it, while health null and backend `received_at` semantics remain intact.
+- Made telemetry temperature/humidity strict finite JSON numbers with existing physical ranges. Health counters/metrics remain strict, reject booleans/strings/non-finite values and preserve only their existing null allowances.
+- Unified backend and lifecycle tooling on the firmware/tooling ASCII device pattern `[A-Za-z0-9][A-Za-z0-9._-]{0,62}` and explicit identity domains. Backend configuration fixes `LEGACY_DEVICE_ID` to exactly `legacy-device`; any override to another value fails validation at startup. That identity remains internal to the legacy topic, migrations and historical backend data, but ordinary per-device publishing, simulator configuration, firmware provisioning and lifecycle add/rotate reject it. A historical accidental bundle entry can still be inspected/revoked. Valid existing devices, `%u` ACL behavior and service identities remain supported in their own domains.
+- Converted the simulator from legacy random telemetry into an explicit `edge-node-02` device path with deterministic configurable measurements, dedicated TLS credentials, CA/hostname verification, per-device least-privilege topics, retained health/online state, offline Last Will, periodic updates, reconnect online state and graceful retained offline shutdown.
+- Added the opt-in Compose `demo` profile; ordinary stack startup still excludes the simulator. Health identifies only a software `simulator` component and makes no BME280/GPIO/Wi-Fi claims.
+- Fixed one integration-discovered runtime incompatibility: the generated `edge-node-02.password` now uses the same non-root UID 10001/host-group `0440` model as the collector secret. The explicit idempotent `normalize-permissions` command validates a managed nonsymlink bundle and changes only owner/mode metadata; tests prove byte-for-byte content preservation with `edge-node-02` present, already normalized or intentionally revoked.
+- Hardened BME280 recovery: read/communication or invalid-measurement faults invalidate the provider and safely remove its I²C handle; the next telemetry cycle performs one full chip-ID/reset/calibration/configuration attempt. Removal failure retains the handle and blocks duplicate registration. A host-side sequence test covers initialization, read failure, deinitialization, next-cycle reinitialization and valid recovery.
+- Made the demo repeatable and nondestructive: conditional environment/bundle setup, existing-trust-domain preflight, fail-fast port checks, an idempotent controlled alert rule, explicit smoke-before-demo ordering, SIGKILL/stopped/start/graceful timing and exact non-volume cleanup.
+- Extended the security smoke with a coercion-prone invalid MQTT payload and a deterministic API/database absence assertion in addition to collector rejection.
+- Added an isolated multi-device smoke covering device registry, per-device telemetry/history/statistics/health/availability, an `edge-node-02`-only alert, SIGKILL/LWT isolation, restart recovery, graceful shutdown, non-root execution, log-secret markers and project-scoped cleanup.
+- Added the technical demo, GitHub Mermaid portfolio diagram, BME280 failure/recovery runbook, screenshot capture/redaction specification, README portfolio framing and closure-focused roadmap.
+
+## Validation contract: before and after
+
+| Domain | Before | After | Status |
+| --- | --- | --- | --- |
+| Device timestamps | Naive datetimes accepted; offsets retained as supplied; fractional values could be silently truncated | Exact lossless RFC 3339 profile required before parsing; offsets normalize to UTC `Z`; absent/all-zero fractions accepted; nonzero fractions at any digit, offset seconds/fractions, permissive forms, unparsable and naive values rejected | PASS |
+| Health time | Null supported but non-null used permissive datetime parsing | Null preserved; health and component non-null timestamps share strict normalization | PASS |
+| Telemetry numbers | Pydantic coerced booleans/numeric strings | JSON int/float accepted; boolean/string/NaN/±Infinity rejected; physical bounds preserved | PASS |
+| Health numbers | Existing strict counters/metrics | Strict behavior retained and covered together with telemetry regressions | PASS |
+| Device identity | Backend Unicode `isalnum()` diverged from firmware/tooling; `legacy-device` could collide with ordinary provisioning or be reassigned by configuration | Shared explicit ASCII syntax plus separate ordinary, fixed legacy compatibility and service domains; `LEGACY_DEVICE_ID` accepts only `legacy-device` | PASS |
+
+## Verification record
+
+- Backend/host tests: `pytest -q` with an initially nonexistent database below `/tmp` — **219 passed**, including **15** firmware host-side tests; the development database was not read or modified.
+- Frontend under official Node.js `v24.19.0`, npm `11.17.0`: `npm ci --ignore-scripts` PASS; `npm test` — 1 passed; lint PASS; `npx tsc --noEmit` PASS; Next.js 16.3.0 production build PASS; full and production npm audits — 0 vulnerabilities.
+- Firmware: ESP-IDF `v6.0.2`; `fullclean` and build PASS; application 1,022,944 bytes in a 3,145,728-byte factory partition; 2,122,784 bytes (67%) headroom; 786,432-byte unallocated reserve; 4 MiB layout gate PASS. No flash or erase was performed; the local build tree and generated `sdkconfig` were removed afterward.
+- Compose: configuration PASS; `docker compose build --pull` PASS for non-root backend/frontend images.
+- Security smoke: TLS, hostname/CA verification, authentication, positive/negative ACL, telemetry ingestion, invalid payload non-persistence, health, retained availability, Last Will, legacy compatibility, SQLite persistence across recreation, effective non-root service UIDs and image-history secret-marker scan PASS.
+- Credential lifecycle smoke: add, rotate with old-password rejection/new-password acceptance and revoke rejection PASS.
+- Multi-device smoke: `edge-node-01`/`edge-node-02` isolation, separate history/statistics/health/availability, idempotent device-scoped alert reuse, SIGKILL/LWT, restart, graceful offline, non-root runtime and log marker scan PASS.
+- Cleanup: no Sprint 18 smoke container, network, volume or temporary security directory remained after traps completed.
+- Existing-bundle portfolio preflight PASS using a public certificate SAN: version-1/symlink boundary, chain/validity/hostname, conditional permission normalization, free ports, stopped stack, demo-only simulator profile and non-root password-file readability were verified without printing credential content.
+
+### Operator-provided manual evidence — 22 August 2026
+
+- **BME280 communication failure/recovery — PASS.** Sprint 18 firmware was flashed without erasing NVS. Physically interrupting SDA/SCL produced `ESP_ERR_INVALID_RESPONSE`; failed samples were rejected, sensor health became `FAULT`, overall health became `DEGRADED`, and availability stayed `ONLINE`. MQTT, system time and machine status stayed `HEALTHY`. Complete reinitialization attempts continued. After reconnection the BME280 was detected, calibration data loaded, initialization completed, telemetry resumed, `samples_ok` advanced, and sensor/overall health returned `HEALTHY` without a manual ESP32 reboot.
+- **BME280 sensor-module power interruption/recovery — PASS.** The operator removed sensor power while leaving the ESP32 operational. The fault was detected and samples rejected while ESP32 and MQTT remained operational. Restoring power triggered BME280 reinitialization and automatic telemetry/health recovery without a manual ESP32 reboot.
+- **Operator portfolio demo — PASS.** The operator verified physical `edge-node-01`, opt-in simulated `edge-node-02`, selector-scoped telemetry/statistics/health/availability, simulator-only component health, an `edge-node-02`-only high-temperature rule and alert, SIGKILL with retained LWT isolation, restart/telemetry recovery, SIGTERM retained offline, and graceful restart/telemetry recovery.
+- **Evidence boundary.** No physical NVS-metadata fault injection or other unreported physical test is claimed.
+
+### Screenshot inspection — 22 August 2026
+
+- `dashboard-two-devices.png` — **PASS**, 2740×1821 RGBA PNG; both online identities visible in the open selector and `edge-node-02` data rendered.
+- `device-health.png` — **PASS**, 2745×1932 RGBA PNG; physical `edge-node-01` component health and counters visible.
+- `alert-active-history.png` — **PASS**, 2745×1836 RGBA PNG; active rule and event history visibly scoped to `edge-node-02`.
+- `device-offline.png` — **PASS**, 2745×1880 RGBA PNG; `edge-node-02` is visibly offline with its alert and rule retained.
+- All four supplied application images passed direct pixel review for coherent framing and absence of visible passwords, setup secrets, tokens, cookies, CSRF values, SSIDs, private keys, provisioning packages and credential-bearing terminals. They are real dashboard captures, not placeholders or generated illustrations.
+- `github-actions-green.png` — **IN PROGRESS**; no hosted-CI screenshot is claimed before the future pushed run.
+
+## Definition of Done
+
+| Required evidence | Status | Evidence or exact blocker |
+| --- | --- | --- |
+| Sprint 18 software implementation | PASS | Strict validation, simulator, reliability hardening and documentation package are locally implemented. |
+| Strict collector timestamp/numeric/device-ID contract | PASS | Unit, integration and Compose non-persistence tests. |
+| Credible second device and multi-device lifecycle | PASS | Opt-in simulator plus isolated acceptance smoke. |
+| Sensor failure code-path inspection and runbook | PASS | Handle-safe next-cycle full reinitialization/reject/health path inspected and host-tested; two physical procedures versioned. |
+| Physical BME280 communication failure/recovery | PASS | Operator-provided 22 August 2026 SDA/SCL interruption and automatic recovery record. |
+| Physical BME280 sensor-power interruption/recovery | PASS | Operator-provided 22 August 2026 sensor-power interruption and automatic recovery record. |
+| Demo guide and architecture diagram | PASS | Versioned narrative, exact commands, Mermaid, limits and cleanup. |
+| Operator-run complete portfolio demo | PASS | Operator-provided 22 August 2026 end-to-end physical/simulator lifecycle record. |
+| Four real application screenshots | PASS | All exact paths pass structural, visual, framing and sensitive-content inspection. |
+| Local backend/frontend/firmware/Docker gates | PASS | Results above. |
+| Repository hygiene and internal links | PASS | Tracked-artifact/secret patterns, diff whitespace and relative links checked locally. |
+| GitHub-hosted Sprint 18 workflow | IN PROGRESS | Requires future push; local workflow configuration is not external evidence. |
+| `github-actions-green.png` | IN PROGRESS | Must be a real capture of the future verified green run. |
+| Tag/release (not a Sprint 18 REQUIRED gate) | IN PROGRESS | Intentionally not created; consider only after all REQUIRED evidence is PASS. |
+
+## Preserved trade-offs
+
+Single-host SQLite and named-volume persistence; no direct Internet exposure; no API/dashboard authentication or HTTPS ingress; no Secure Boot, flash/NVS encryption, OTA, telemetry store-and-forward, automatic backup or multi-host storage; authenticated provisioning HTTP protected by the unique WPA2 SoftAP but without application-layer encryption. These are explicit portfolio boundaries, not Sprint 18 feature requests.

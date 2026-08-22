@@ -79,6 +79,26 @@ def test_invalid_application_configuration_fails_fast(field, value):
         make_settings(**{field: value})
 
 
+def test_legacy_device_identity_default_is_fixed():
+    assert make_settings().LEGACY_DEVICE_ID == "legacy-device"
+
+
+def test_explicit_legacy_device_environment_value_is_valid(monkeypatch):
+    monkeypatch.setenv("LEGACY_DEVICE_ID", "legacy-device")
+    assert make_settings().LEGACY_DEVICE_ID == "legacy-device"
+
+
+@pytest.mark.parametrize(
+    "value", ["edge-node-01", "legacy-test", "collector", "LEGACY-DEVICE", ""]
+)
+def test_legacy_device_identity_rejects_every_other_environment_value(
+    value, monkeypatch
+):
+    monkeypatch.setenv("LEGACY_DEVICE_ID", value)
+    with pytest.raises(ValidationError):
+        make_settings()
+
+
 def test_cors_origins_are_normalized_and_deduplicated():
     configured = make_settings(
         CORS_ORIGINS="http://localhost:3000/, https://example.test,https://example.test"

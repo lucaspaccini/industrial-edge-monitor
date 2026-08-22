@@ -98,7 +98,7 @@ The generator and lifecycle tool temporarily bind-mount their complete same-pare
 | `server/server.key` | generator; Mosquitto | **secret**, host group-readable `0440`, container UID 1883 ownership | mounted read-only into Mosquitto only |
 | `mosquitto/passwords` | generator/lifecycle; policy builder | **secret-equivalent hashed credentials**, `0600` | not runtime-mounted; never copied to a device |
 | `mosquitto/dynamic-security.json` | policy builder/lifecycle; Dynamic Security plugin | sensitive hashes/policy, UID 1883 and host group, `0660` | writable bind mount because the plugin owns its state |
-| `clients/*.password` | generator/lifecycle; corresponding service or operator | **secret**, normally `0600`; collector is UID 10001/host-group `0440` | only collector password is mounted read-only |
+| `clients/*.password` | generator/lifecycle; corresponding service or operator | **secret**, normally `0600`; collector and demo `edge-node-02` are UID 10001/host-group `0440` | collector and opt-in simulator mount only their own password read-only |
 | `clients/*.container.conf` | generator/lifecycle; container test/client | **secret** because it embeds `--pw`; normally `0600`; health check is UID 1883/host-group `0440` | health check mounted read-only; others only in controlled test mounts |
 | `clients/*.host.conf` | initial generator; host tools | **secret**, `0600` | never mounted or copied |
 | `devices/DEVICE_ID.json` | lifecycle tool; `inspect` | sensitive metadata without password, directory `0700`, file `0600` | not mounted or copied |
@@ -130,7 +130,7 @@ docker compose up --detach --force-recreate mqtt
 
 Recreation disconnects existing MQTT sessions. Retained messages and broker persistence remain in `mqtt-data`. Without recreation, a currently loaded old password/identity may remain accepted even though disk files changed.
 
-The collector mounts only the public CA and `collector.password`, subscribes after API and broker health, and writes to the shared SQLite volume. The health check publishes only to `industrial/healthcheck` using its constrained option file. API and frontend neither connect to MQTT nor receive device credentials.
+The collector mounts only the public CA and `collector.password`, subscribes after API and broker health, and writes to the shared SQLite volume. The opt-in `demo` simulator mounts the CA and only `edge-node-02.password`; it is excluded from ordinary `docker compose up`. The health check publishes only to `industrial/healthcheck` using its constrained option file. API and frontend neither connect to MQTT nor receive device credentials.
 
 ## 6. Policy and roles
 
@@ -283,19 +283,15 @@ find .local/mqtt-security -maxdepth 3 \
   -printf '%M %u:%g %p\n' | sort
 ```
 
-The observed `Permission denied` during rotate occurs when the host user cannot read files copied into lifecycle staging, commonly because container normalization left UID 1883/10001 files with a GID the user does not belong to. After validating the explicit bundle path and version-1 marker, restore the same minimal ownership/modes used by the implementation:
+The observed `Permission denied` during rotate occurs when the host user cannot read files copied into lifecycle staging, commonly because container normalization left UID 1883/10001 files with a GID the user does not belong to. Use the explicit, idempotent repair command:
 
 ```bash
-test "$(cat .local/mqtt-security/.generated-version)" = 1
-test ! -L .local/mqtt-security
-docker run --rm --entrypoint sh \
-  --volume "$PWD/.local/mqtt-security:/work" \
-  eclipse-mosquitto:2.1.2-alpine \
-  -c 'chown "1883:$1" /work/server/server.key /work/mosquitto/dynamic-security.json /work/clients/healthcheck.container.conf && chmod 0440 /work/server/server.key /work/clients/healthcheck.container.conf && chmod 0660 /work/mosquitto/dynamic-security.json && chown "10001:$1" /work/clients/collector.password && chmod 0440 /work/clients/collector.password' \
-  sh "$(id -g)"
+scripts/manage-mqtt-device.py \
+  --bundle .local/mqtt-security \
+  normalize-permissions
 ```
 
-Never use `chmod -R 777`. The generator/lifecycle tool rejects root or contained symlinks, wrong markers and incomplete bundles; inspect rather than manually filling missing files.
+The command rejects root or contained symlinks, a wrong version marker and incomplete bundles. It only normalizes the required owner/mode metadata; it does not rewrite certificates, private keys, hashes, policy, device metadata or provisioning packages. It succeeds when `edge-node-02` is present or intentionally revoked and is safe to run repeatedly. Never use `chmod -R 777`; inspect rather than manually filling missing files.
 
 | Symptom | Check and action |
 | --- | --- |

@@ -87,7 +87,7 @@ nvm use
 node --version  # v24.19.0
 cd frontend
 npm ci --ignore-scripts
-cp .env.example .env.local
+test -f .env.local || cp .env.example .env.local
 ```
 
 `NEXT_PUBLIC_API_URL` is the FastAPI base URL used by browser-side requests. It must therefore be reachable from the user's browser, normally `http://127.0.0.1:8000` for local development. Compose DNS names such as `api` and `mqtt` are resolvable by containers, not by the browser or an ESP32 on the LAN.

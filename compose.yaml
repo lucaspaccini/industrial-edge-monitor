@@ -112,6 +112,37 @@ services:
       mqtt:
         condition: service_healthy
 
+  simulator:
+    <<: *backend
+    profiles:
+      - demo
+    restart: "no"
+    environment:
+      <<: *backend-environment
+      MQTT_CLIENT_ENABLED: "true"
+      MQTT_TLS_ENABLED: "true"
+      MQTT_CA_CERT_PATH: /run/mqtt-client/ca.crt
+      MQTT_USERNAME: edge-node-02
+      MQTT_PASSWORD_FILE: /run/mqtt-client/password
+      MQTT_CLIENT_ID: iem-edge-node-02-simulator
+      SIMULATOR_DEVICE_ID: edge-node-02
+      SIMULATOR_INTERVAL_SECONDS: ${SIMULATOR_INTERVAL_SECONDS:-2}
+      SIMULATOR_TEMPERATURE: ${SIMULATOR_TEMPERATURE:-32}
+      SIMULATOR_HUMIDITY: ${SIMULATOR_HUMIDITY:-55}
+      SIMULATOR_MACHINE_STATUS: ${SIMULATOR_MACHINE_STATUS:-running}
+    volumes:
+      - ${MQTT_SECURITY_DIR:-./.local/mqtt-security}/ca/ca.crt:/run/mqtt-client/ca.crt:ro
+      - ${MQTT_SECURITY_DIR:-./.local/mqtt-security}/clients/edge-node-02.password:/run/mqtt-client/password:ro
+    command:
+      - python
+      - -m
+      - backend.simulator.publisher
+    depends_on:
+      mqtt:
+        condition: service_healthy
+      collector:
+        condition: service_started
+
   frontend:
     build:
       context: ./frontend

@@ -123,3 +123,7 @@ jobs:
       - name: Run MQTT device lifecycle smoke test
         shell: bash
         run: scripts/mqtt-device-lifecycle-smoke.sh
+
+      - name: Run isolated multi-device demo smoke test
+        shell: bash
+        run: scripts/multi-device-demo-smoke.sh

@@ -188,7 +188,8 @@ def test_invalid_device_id_is_rejected(
 
 
 @pytest.mark.parametrize(
-    "reserved_identity", ["collector", "healthcheck", "simulator", "legacy-test"]
+    "reserved_identity",
+    ["collector", "healthcheck", "simulator", "legacy-test", "legacy-device"],
 )
 def test_reserved_service_identity_is_rejected_as_device(
     tmp_path, generator_environment, reserved_identity
@@ -201,7 +202,7 @@ def test_reserved_service_identity_is_rejected_as_device(
     )
 
     assert result.returncode != 0
-    assert "Reserved service identity" in result.stderr
+    assert "Reserved" in result.stderr
 
 
 def test_duplicate_device_id_is_rejected(tmp_path, generator_environment):

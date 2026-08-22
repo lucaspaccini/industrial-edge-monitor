@@ -298,7 +298,7 @@ chmod 0600 \
 docker run --rm --entrypoint sh \
   --volume "$staging_dir:/work" \
   "$mosquitto_image" \
-  -c 'chown "1883:$1" /work/server/server.key /work/mosquitto/dynamic-security.json /work/clients/healthcheck.container.conf && chmod 0440 /work/server/server.key /work/clients/healthcheck.container.conf && chmod 0660 /work/mosquitto/dynamic-security.json && chown "10001:$1" /work/clients/collector.password && chmod 0440 /work/clients/collector.password' \
+  -c 'chown "1883:$1" /work/server/server.key /work/mosquitto/dynamic-security.json /work/clients/healthcheck.container.conf && chmod 0440 /work/server/server.key /work/clients/healthcheck.container.conf && chmod 0660 /work/mosquitto/dynamic-security.json && chown "10001:$1" /work/clients/collector.password /work/clients/edge-node-02.password && chmod 0440 /work/clients/collector.password /work/clients/edge-node-02.password' \
   sh "$local_gid"
 
 for relative_path in "${required_files[@]}"; do

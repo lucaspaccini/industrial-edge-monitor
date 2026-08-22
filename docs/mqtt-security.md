@@ -16,10 +16,15 @@ The local CA is a trust anchor, not a client credential. It signs a server certi
 | --- | --- |
 | `edge-node-01` and other device identities | Publish only `industrial/devices/%u/telemetry`, `/health` and `/availability`; no subscriptions |
 | `collector` | Subscribe to and receive the legacy telemetry topic and the three required per-device topic filters; no publish |
-| `simulator`, `legacy-test` | Publish only `industrial/telemetry` |
+| `simulator`, `legacy-test` compatibility identities | Publish only `industrial/telemetry` |
 | `healthcheck` | Publish only `industrial/healthcheck` |
 
 All unspecified publish, receive and subscribe operations are denied. The versioned [`security-policy.json`](../docker/mosquitto/security-policy.json) is converted with a generated, hashed Mosquitto password file into the ignored Dynamic Security database. Dynamic Security is used because its `subscribeLiteral` ACLs reject unauthorized wildcard subscription requests at subscription time; a traditional static Mosquitto ACL only filters delivered messages. The shared `%u` role is also used by the transactional per-device lifecycle command.
+
+The Sprint 18 portfolio simulator authenticates as the ordinary device
+`edge-node-02`, not as the legacy `simulator` service identity. It therefore
+exercises the same `%u` least-privilege contract as an ESP32 while remaining
+explicitly identified as simulated in health.
 
 ## Operational procedures
 

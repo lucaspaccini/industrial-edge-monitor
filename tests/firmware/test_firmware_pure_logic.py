@@ -49,6 +49,98 @@ def compile_and_run(tmp_path: Path, name: str, sources: list[Path], include_dirs
     subprocess.run([str(executable)], check=True)
 
 
+def test_sensor_read_failure_invalidates_provider_and_recovers_next_cycle(tmp_path):
+    component = REPOSITORY_ROOT / "firmware/components/sensor"
+    (tmp_path / "esp_err.h").write_text(textwrap.dedent("""
+        #pragma once
+        typedef int esp_err_t;
+        #define ESP_OK 0
+        #define ESP_FAIL -1
+        #define ESP_ERR_INVALID_ARG 2
+    """), encoding="utf-8")
+    (tmp_path / "esp_log.h").write_text(textwrap.dedent("""
+        #pragma once
+        #define ESP_LOGE(tag, format, ...) ((void)(tag))
+        #define ESP_LOGW(tag, format, ...) ((void)(tag))
+        #define ESP_LOGI(tag, format, ...) ((void)(tag))
+        static inline const char *esp_err_to_name(int error) { (void)error; return "stub"; }
+    """), encoding="utf-8")
+    (tmp_path / "bme280.h").write_text(textwrap.dedent("""
+        #pragma once
+        #include "esp_err.h"
+        typedef struct {
+            float temperature_c;
+            float pressure_hpa;
+            float humidity_percent;
+        } bme280_measurement_t;
+        esp_err_t bme280_init(void);
+        esp_err_t bme280_deinit(void);
+        esp_err_t bme280_read(bme280_measurement_t *measurement);
+    """), encoding="utf-8")
+    compile_and_run(
+        tmp_path,
+        "sensor_recovery_test",
+        [component / "sensor.c"],
+        [tmp_path, component / "include"],
+        r"""
+        #include <assert.h>
+        #include "bme280.h"
+        #include "sensor.h"
+
+        static int init_calls;
+        static int deinit_calls;
+        static int read_calls;
+
+        esp_err_t bme280_init(void) { init_calls++; return ESP_OK; }
+        esp_err_t bme280_deinit(void) { deinit_calls++; return ESP_OK; }
+        esp_err_t bme280_read(bme280_measurement_t *measurement) {
+            read_calls++;
+            if (read_calls == 1) return ESP_FAIL;
+            measurement->temperature_c = 24.5f;
+            measurement->humidity_percent = 51.0f;
+            measurement->pressure_hpa = 1008.0f;
+            return ESP_OK;
+        }
+
+        int main(void) {
+            sensor_data_t data = {0};
+            assert(sensor_read(&data) == ESP_FAIL);
+            assert(init_calls == 1 && read_calls == 1 && deinit_calls == 1);
+            assert(sensor_read(&data) == ESP_OK);
+            assert(init_calls == 2 && read_calls == 2 && deinit_calls == 1);
+            assert(data.temperature == 24.5f && data.humidity == 51.0f);
+            return 0;
+        }
+        """,
+    )
+
+
+def test_invalid_measurement_schedules_provider_reinitialization():
+    source = (
+        REPOSITORY_ROOT / "firmware/components/telemetry/telemetry_model.c"
+    ).read_text(encoding="utf-8")
+    validation_branch = source[source.index("if (validation_result != ESP_OK)"):]
+    assert validation_branch.index("sensor_invalidate()") < validation_branch.index(
+        "return validation_result"
+    )
+
+
+def test_bme280_recovery_never_loses_or_duplicates_an_i2c_handle():
+    source = (
+        REPOSITORY_ROOT / "firmware/components/bme280/bme280.c"
+    ).read_text(encoding="utf-8")
+    remove = source[
+        source.index("static esp_err_t bme280_remove_device"):
+        source.index("static esp_err_t bme280_wait_for_calibration_copy")
+    ]
+    assert remove.index("return result;") < remove.index("bme280_device = NULL;")
+
+    initialize = source[source.index("esp_err_t bme280_init(void)"):]
+    assert initialize.index("bme280_remove_device()") < initialize.index(
+        "i2c_master_bus_add_device"
+    )
+
+
 def test_provisioning_state_concurrent_uint64_access(tmp_path):
     component = REPOSITORY_ROOT / "firmware/components/provisioning_state"
     write_freertos_mutex_stubs(tmp_path)
@@ -588,6 +680,7 @@ def test_actual_device_config_storage_candidate_rollback_and_redaction(tmp_path)
             device_config_t invalid = first; invalid.schema_version = 99; assert_invalid(invalid);
             invalid = first; invalid.revision = 0; assert_invalid(invalid);
             invalid = first; snprintf(invalid.device_id, sizeof(invalid.device_id), "collector"); assert_invalid(invalid);
+            invalid = first; snprintf(invalid.device_id, sizeof(invalid.device_id), "legacy-device"); assert_invalid(invalid);
             invalid = first; invalid.device_id[0] = (char)0xc3; invalid.device_id[1] = (char)0xa9; invalid.device_id[2] = '\0'; assert_invalid(invalid);
             invalid = first; invalid.wifi_ssid[0] = '\0'; assert_invalid(invalid);
             invalid = first; snprintf(invalid.wifi_password, sizeof(invalid.wifi_password), "short"); assert_invalid(invalid);

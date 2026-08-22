@@ -13,6 +13,7 @@ from backend.collector.schemas import (
 )
 from backend.core.config import settings
 from backend.core.logging import configure_logging, get_logger
+from backend.core.validation import validate_provisionable_device_id
 from backend.database.init_db import initialize_database
 from backend.mqtt.client import (
     connection_error_category,
@@ -54,6 +55,8 @@ def process_message(topic: str, raw_payload: bytes) -> None:
 
     if topic == settings.MQTT_TOPIC:
         payload["device_id"] = settings.LEGACY_DEVICE_ID
+    else:
+        validate_provisionable_device_id(topic_device_id)
 
     payload_device_id = payload.get("device_id")
     if payload_device_id != topic_device_id:

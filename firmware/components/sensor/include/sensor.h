@@ -24,6 +24,14 @@ typedef struct
 esp_err_t sensor_init(void);
 
 /**
+ * @brief Invalidate the current provider after a communication or data fault.
+ *
+ * The following sensor_read() performs at most one complete initialization
+ * attempt before reading again.
+ */
+esp_err_t sensor_invalidate(void);
+
+/**
  * @brief Read the current environmental measurements.
  *
  * @param[out] data Destination structure.

@@ -15,11 +15,19 @@ from urllib.parse import urlparse
 
 from build_mosquitto_security import build_configuration, load_passwords
 from mqtt_device_common import mqtt_client_id, validate_device_id
+from backend.core.validation import LEGACY_DEVICE_IDENTITY, validate_device_id_syntax
 
 
 BUNDLE_VERSION = "1"
 PACKAGE_SCHEMA_VERSION = 1
 DEFAULT_IMAGE = "eclipse-mosquitto:2.1.2-alpine"
+
+
+def validate_existing_device_id(value: str) -> str:
+    """Allow inspection/removal of a historical legacy collision, never creation."""
+    if validate_device_id_syntax(value) == LEGACY_DEVICE_IDENTITY:
+        return value
+    return validate_device_id(value)
 
 
 def validate_broker_uri(value: str) -> str:
@@ -99,12 +107,29 @@ def apply_runtime_permissions(bundle: Path, image: str) -> None:
             '&& chmod 0440 /work/server/server.key /work/clients/healthcheck.container.conf '
             '&& chmod 0660 /work/mosquitto/dynamic-security.json '
             '&& chown "10001:$1" /work/clients/collector.password '
-            '&& chmod 0440 /work/clients/collector.password',
+            '&& chmod 0440 /work/clients/collector.password '
+            '&& if [ -f /work/clients/edge-node-02.password ]; then '
+            'chown "10001:$1" /work/clients/edge-node-02.password '
+            '&& chmod 0440 /work/clients/edge-node-02.password; fi',
             "sh", str(os.getgid()),
         ],
         check=True,
         stdout=subprocess.DEVNULL,
     )
+
+
+def normalize_permissions(args) -> None:
+    """Repair runtime ownership/modes without replacing or rewriting bundle data."""
+    bundle = ensure_managed_bundle(args.bundle)
+    for relative_path in (
+        "server/server.key",
+        "mosquitto/dynamic-security.json",
+        "clients/healthcheck.container.conf",
+        "clients/collector.password",
+    ):
+        if not (bundle / relative_path).is_file():
+            raise ValueError(f"managed bundle is incomplete: {relative_path}")
+    apply_runtime_permissions(bundle, args.mosquitto_image)
 
 
 def hash_password(bundle: Path, username: str, password: str, image: str) -> None:
@@ -289,7 +314,7 @@ def add_or_rotate(args, rotate: bool) -> Path:
 
 
 def revoke(args) -> None:
-    device_id = validate_device_id(args.device_id)
+    device_id = validate_existing_device_id(args.device_id)
     repository_root = Path(__file__).resolve().parents[1]
 
     def mutate(staging: Path):
@@ -307,13 +332,16 @@ def revoke(args) -> None:
 
 def list_devices(args) -> None:
     identities = read_identities(ensure_managed_bundle(args.bundle))
-    reserved = {"collector", "healthcheck", "simulator", "legacy-test"}
+    reserved = {
+        "collector", "healthcheck", "simulator", "legacy-test",
+        LEGACY_DEVICE_IDENTITY,
+    }
     for identity in sorted(set(identities) - reserved):
         print(identity)
 
 
 def inspect_device(args) -> None:
-    device_id = validate_device_id(args.device_id)
+    device_id = validate_existing_device_id(args.device_id)
     bundle = ensure_managed_bundle(args.bundle)
     if device_id not in read_identities(bundle):
         raise ValueError(f"device identity is missing: {device_id}")
@@ -337,6 +365,7 @@ def build_parser() -> argparse.ArgumentParser:
         command.add_argument("--broker-uri", required=True)
         command.add_argument("--output", type=Path)
     subparsers.add_parser("list")
+    subparsers.add_parser("normalize-permissions")
     inspect_parser = subparsers.add_parser("inspect")
     inspect_parser.add_argument("device_id")
     revoke_parser = subparsers.add_parser("revoke")
@@ -359,6 +388,9 @@ def main() -> None:
             print("Device identity revoked.")
         elif args.command == "list":
             list_devices(args)
+        elif args.command == "normalize-permissions":
+            normalize_permissions(args)
+            print("Runtime permissions normalized; bundle contents were not rewritten.")
         else:
             inspect_device(args)
         if args.command in {"add", "rotate", "revoke"}:

@@ -19,7 +19,7 @@ CA = "-----BEGIN CERTIFICATE-----\ntest-public-ca\n-----END CERTIFICATE-----\n"
 @pytest.fixture
 def bundle(tmp_path):
     root = tmp_path / "mqtt-security"
-    for directory in ("ca", "mosquitto", "clients"):
+    for directory in ("ca", "server", "mosquitto", "clients"):
         (root / directory).mkdir(parents=True, exist_ok=True)
     (root / ".generated-version").write_text("1\n", encoding="utf-8")
     (root / "ca/ca.crt").write_text(CA, encoding="utf-8")
@@ -27,6 +27,9 @@ def bundle(tmp_path):
         "collector:$7$collector\nhealthcheck:$7$healthcheck\n", encoding="utf-8"
     )
     (root / "mosquitto/dynamic-security.json").write_text("{}\n", encoding="utf-8")
+    (root / "server/server.key").write_text("private-key-sentinel\n", encoding="utf-8")
+    (root / "clients/healthcheck.container.conf").write_text("healthcheck\n", encoding="utf-8")
+    (root / "clients/collector.password").write_text("collector-secret\n", encoding="utf-8")
     return root
 
 
@@ -112,6 +115,77 @@ def test_duplicate_and_reserved_identity_are_rejected(bundle, tmp_path, monkeypa
         lifecycle.add_or_rotate(args, rotate=False)
     with pytest.raises(ValueError, match="Reserved"):
         lifecycle.add_or_rotate(arguments(bundle, "collector", tmp_path / "bad.json"), rotate=False)
+    with pytest.raises(ValueError, match="compatibility identity"):
+        lifecycle.add_or_rotate(arguments(bundle, "legacy-device", tmp_path / "legacy.json"), rotate=False)
+
+
+@pytest.mark.parametrize("edge_node_02_present", [True, False])
+def test_permission_normalization_is_idempotent_and_preserves_content(
+    bundle, monkeypatch, edge_node_02_present
+):
+    edge_password = bundle / "clients/edge-node-02.password"
+    if edge_node_02_present:
+        edge_password.write_text("simulator-secret\n", encoding="utf-8")
+
+    expected_modes = {
+        "server/server.key": 0o440,
+        "mosquitto/dynamic-security.json": 0o660,
+        "clients/healthcheck.container.conf": 0o440,
+        "clients/collector.password": 0o440,
+    }
+    if edge_node_02_present:
+        expected_modes["clients/edge-node-02.password"] = 0o440
+
+    def fake_runtime_permissions(target, image):
+        assert target == bundle.resolve()
+        assert image == "unused"
+        for relative_path, mode in expected_modes.items():
+            (target / relative_path).chmod(mode)
+
+    monkeypatch.setattr(lifecycle, "apply_runtime_permissions", fake_runtime_permissions)
+    before = {
+        path.relative_to(bundle): path.read_bytes()
+        for path in bundle.rglob("*")
+        if path.is_file()
+    }
+    args = SimpleNamespace(bundle=bundle, mosquitto_image="unused")
+
+    lifecycle.normalize_permissions(args)
+    lifecycle.normalize_permissions(args)
+
+    after = {
+        path.relative_to(bundle): path.read_bytes()
+        for path in bundle.rglob("*")
+        if path.is_file()
+    }
+    assert after == before
+    for relative_path, mode in expected_modes.items():
+        assert stat.S_IMODE((bundle / relative_path).stat().st_mode) == mode
+
+
+def test_historical_legacy_bundle_identity_can_be_revoked_but_not_listed(
+    bundle, monkeypatch, capsys
+):
+    password_file = bundle / "mosquitto/passwords"
+    password_file.write_text(
+        password_file.read_text(encoding="utf-8")
+        + "legacy-device:$7$historical-collision\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        lifecycle, "apply_runtime_permissions", lambda target, image: None
+    )
+
+    lifecycle.list_devices(SimpleNamespace(bundle=bundle))
+    assert capsys.readouterr().out == ""
+    lifecycle.revoke(
+        SimpleNamespace(
+            bundle=bundle,
+            device_id="legacy-device",
+            mosquitto_image="unused",
+        )
+    )
+    assert "legacy-device:" not in password_file.read_text(encoding="utf-8")
 
 
 def test_bundle_is_preserved_when_mutation_or_package_commit_fails(bundle, tmp_path, monkeypatch):

@@ -9,6 +9,12 @@
 static const char *TAG = "sensor";
 static bool initialized = false;
 
+esp_err_t sensor_invalidate(void)
+{
+    initialized = false;
+    return bme280_deinit();
+}
+
 esp_err_t sensor_init(void)
 {
     esp_err_t result = bme280_init();
@@ -19,6 +25,15 @@ esp_err_t sensor_init(void)
             "Failed to initialize BME280: %s",
             esp_err_to_name(result)
         );
+
+        esp_err_t deinit_result = sensor_invalidate();
+        if (deinit_result != ESP_OK) {
+            ESP_LOGW(
+                TAG,
+                "BME280 cleanup deferred until next cycle: %s",
+                esp_err_to_name(deinit_result)
+            );
+        }
 
         return result;
     }
@@ -53,6 +68,15 @@ esp_err_t sensor_read(sensor_data_t *data)
             "Failed to read BME280 measurement: %s",
             esp_err_to_name(result)
         );
+
+        esp_err_t deinit_result = sensor_invalidate();
+        if (deinit_result != ESP_OK) {
+            ESP_LOGW(
+                TAG,
+                "BME280 cleanup deferred until next cycle: %s",
+                esp_err_to_name(deinit_result)
+            );
+        }
 
         return result;
     }

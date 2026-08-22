@@ -1,5 +1,8 @@
 import json
 
+import pytest
+from pydantic import ValidationError
+
 from backend.api.alert_schemas import AlertRuleCreate
 from backend.collector.subscriber import process_message
 from backend.repositories import alert_repository, telemetry_repository
@@ -104,3 +107,34 @@ def test_alert_failure_does_not_rollback_telemetry(alert_database, monkeypatch):
     )
 
     assert telemetry_repository.fetch_latest_telemetry("edge-01") is not None
+
+
+def test_rejected_lossy_fraction_is_not_persisted_or_evaluated(alert_database):
+    rule = alert_service.create_rule(AlertRuleCreate(
+        name="Exact-second ordering",
+        device_id="edge-01",
+        metric="temperature",
+        operator="greater_than",
+        threshold=30,
+        duration_seconds=0,
+        hysteresis=1,
+        severity="warning",
+    ))
+    process_message(
+        "industrial/devices/edge-01/telemetry",
+        telemetry_payload("2026-07-26T10:00:01.000Z"),
+    )
+    before = alert_repository.fetch_rule(rule["id"])
+    events_before = alert_repository.fetch_events(rule_id=rule["id"])
+
+    with pytest.raises(ValidationError, match="fraction must contain only zeros"):
+        process_message(
+            "industrial/devices/edge-01/telemetry",
+            telemetry_payload("2026-07-26T10:00:01.0000009Z"),
+        )
+
+    after = alert_repository.fetch_rule(rule["id"])
+    assert after["last_evaluated_at"] == before["last_evaluated_at"]
+    assert after["last_telemetry_id"] == before["last_telemetry_id"]
+    assert alert_repository.fetch_events(rule_id=rule["id"]) == events_before
+    assert len(telemetry_repository.fetch_telemetry_history(device_id="edge-01")) == 1

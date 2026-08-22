@@ -2,6 +2,7 @@
 #include "bme280_registers.h"
 
 #include <stddef.h>
+#include <stdbool.h>
 #include <stdint.h>
 
 #include "config.h"
@@ -48,6 +49,7 @@ typedef struct {
 } bme280_raw_data_t;
 
 static i2c_master_dev_handle_t bme280_device = NULL;
+static bool bme280_ready = false;
 static bme280_calibration_t calibration;
 static int32_t temperature_fine = 0;
 
@@ -144,10 +146,10 @@ static esp_err_t bme280_write_register(
     return result;
 }
 
-static void bme280_remove_device(void)
+static esp_err_t bme280_remove_device(void)
 {
     if (bme280_device == NULL) {
-        return;
+        return ESP_OK;
     }
 
     esp_err_t result = i2c_master_bus_rm_device(bme280_device);
@@ -158,9 +160,11 @@ static void bme280_remove_device(void)
             "Failed to remove BME280 device: %s",
             esp_err_to_name(result)
         );
+        return result;
     }
 
     bme280_device = NULL;
+    return ESP_OK;
 }
 
 static esp_err_t bme280_wait_for_calibration_copy(void)
@@ -456,9 +460,16 @@ static float bme280_compensate_humidity(int32_t raw_humidity)
 
 esp_err_t bme280_init(void)
 {
-    if (bme280_device != NULL) {
+    if (bme280_device != NULL && bme280_ready) {
         ESP_LOGW(TAG, "BME280 already initialized");
         return ESP_OK;
+    }
+
+    if (bme280_device != NULL) {
+        esp_err_t remove_result = bme280_remove_device();
+        if (remove_result != ESP_OK) {
+            return remove_result;
+        }
     }
 
     i2c_master_bus_handle_t bus_handle = app_i2c_bus_get_handle();
@@ -556,8 +567,15 @@ esp_err_t bme280_init(void)
     }
 
     ESP_LOGI(TAG, "BME280 initialized successfully");
+    bme280_ready = true;
 
     return ESP_OK;
+}
+
+esp_err_t bme280_deinit(void)
+{
+    bme280_ready = false;
+    return bme280_remove_device();
 }
 
 esp_err_t bme280_read(bme280_measurement_t *measurement)
@@ -566,7 +584,7 @@ esp_err_t bme280_read(bme280_measurement_t *measurement)
         return ESP_ERR_INVALID_ARG;
     }
 
-    if (bme280_device == NULL) {
+    if (bme280_device == NULL || !bme280_ready) {
         ESP_LOGE(TAG, "BME280 is not initialized");
         return ESP_ERR_INVALID_STATE;
     }

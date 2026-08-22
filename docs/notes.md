@@ -14,8 +14,7 @@
 - python -m backend.collector.subscriber
 
 ## PUBLISHER
-- source .venv/bin/activate
-- python -m backend.simulator.publisher
+- docker compose --profile demo up --detach simulator
 
 ## FRONTEND
 - cd frontend

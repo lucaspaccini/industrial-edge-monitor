@@ -60,7 +60,9 @@ static bool valid_device_id(const char *value)
             return false;
         }
     }
-    const char *reserved[] = {"collector", "healthcheck", "simulator", "legacy-test"};
+    const char *reserved[] = {
+        "collector", "healthcheck", "simulator", "legacy-test", "legacy-device"
+    };
     for (size_t index = 0; index < sizeof(reserved) / sizeof(reserved[0]); index++) {
         if (strcmp(value, reserved[index]) == 0) {
             return false;

@@ -6,6 +6,8 @@ umask 077
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 
+scripts/check-host-ports.py 3000 8000 8883
+
 project_name="${COMPOSE_PROJECT_NAME:-iem-security-smoke-$$}"
 security_parent="$(mktemp -d /tmp/iem-security-smoke.XXXXXX)"
 security_dir="$security_parent/material"
@@ -81,6 +83,24 @@ scripts/generate-mqtt-security.sh --output "$security_dir"
 docker compose config --quiet
 docker compose up --detach --wait --wait-timeout 180
 echo "Smoke stage: stack healthy"
+
+for service in mqtt api collector frontend; do
+  container_id="$(docker compose ps -q "$service")"
+  runtime_uid="$(docker exec "$container_id" sh -c \
+    "awk '/^Uid:/{print \$2}' /proc/1/status")"
+  if [[ -z "$runtime_uid" || "$runtime_uid" = "0" ]]; then
+    echo "$service is unexpectedly running as root" >&2
+    exit 1
+  fi
+done
+for image in industrial-edge-monitor-backend:local industrial-edge-monitor-frontend:local; do
+  if docker history --no-trunc --format '{{.CreatedBy}}' "$image" \
+      | grep -E 'BEGIN (RSA |EC |)PRIVATE KEY|MQTT_PASSWORD='; then
+    echo "Sensitive material marker appeared in image history: $image" >&2
+    exit 1
+  fi
+done
+echo "Smoke stage: services non-root and image history free of secret markers"
 
 curl --fail --silent --show-error http://127.0.0.1:8000/health >/dev/null
 curl --fail --silent --show-error http://127.0.0.1:3000/ >/dev/null
@@ -191,6 +211,29 @@ telemetry_json="$(wait_for_json \
 telemetry_id="$(python3 -c 'import json,sys; print(json.loads(sys.argv[1])["id"])' "$telemetry_json")"
 test -n "$telemetry_id"
 echo "Smoke stage: TLS telemetry persisted"
+
+invalid_before="$(curl --fail --silent --show-error \
+  'http://127.0.0.1:8000/telemetry/?device_id=edge-node-02&limit=100')"
+python3 -c 'import json,sys; assert json.loads(sys.argv[1]) == []' "$invalid_before"
+invalid_payload='{"device_id":"edge-node-02","timestamp":"2026-08-10T12:00:00","temperature":"99","humidity":true,"machine_status":"running"}'
+mqtt_pub \
+  -o /run/mqtt-security/clients/edge-node-02.container.conf \
+  --topic industrial/devices/edge-node-02/telemetry \
+  --message "$invalid_payload"
+invalid_rejected=0
+for _attempt in {1..30}; do
+  if docker compose logs collector 2>&1 \
+      | grep --quiet 'Rejected invalid MQTT message topic=industrial/devices/edge-node-02/telemetry'; then
+    invalid_rejected=1
+    break
+  fi
+  sleep 1
+done
+test "$invalid_rejected" -eq 1
+invalid_after="$(curl --fail --silent --show-error \
+  'http://127.0.0.1:8000/telemetry/?device_id=edge-node-02&limit=100')"
+python3 -c 'import json,sys; assert json.loads(sys.argv[1]) == []' "$invalid_after"
+echo "Smoke stage: invalid telemetry rejected without persistence"
 
 health_payload='{"schema_version":1,"device_id":"edge-node-01","timestamp":"2026-08-10T12:00:01Z","status":"healthy","availability":"online","components":{},"counters":{"samples_ok":1},"metrics":{"wifi_rssi_dbm":null}}'
 mqtt_pub \

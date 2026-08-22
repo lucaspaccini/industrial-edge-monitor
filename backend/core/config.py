@@ -7,7 +7,7 @@ from urllib.parse import urlsplit
 from pydantic import BeforeValidator, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from backend.core.validation import validate_device_id
+from backend.core.validation import validate_provisionable_device_id
 
 
 BASE_DIR = Path(__file__).resolve().parents[2]
@@ -32,6 +32,16 @@ PositiveFloat = Annotated[
     float,
     BeforeValidator(reject_boolean_number),
     Field(gt=0, le=60),
+]
+SimulatorTemperature = Annotated[
+    float,
+    BeforeValidator(reject_boolean_number),
+    Field(ge=-40.0, le=85.0, allow_inf_nan=False),
+]
+SimulatorHumidity = Annotated[
+    float,
+    BeforeValidator(reject_boolean_number),
+    Field(ge=0.0, le=100.0, allow_inf_nan=False),
 ]
 HistoryLimit = Annotated[
     int,
@@ -69,8 +79,15 @@ class Settings(BaseSettings):
     MQTT_RECONNECT_MAX_SECONDS: PositiveInt = 30
     MQTT_TOPIC: str = "industrial/telemetry"
     MQTT_TOPIC_PREFIX: str = "industrial/devices"
-    LEGACY_DEVICE_ID: str = "legacy-device"
+    LEGACY_DEVICE_ID: Literal["legacy-device"] = "legacy-device"
     DEVICE_OFFLINE_TIMEOUT_SECONDS: PositiveInt = 150
+
+    # Explicit portfolio-demo simulator (disabled unless its process is started)
+    SIMULATOR_DEVICE_ID: str = "edge-node-02"
+    SIMULATOR_INTERVAL_SECONDS: PositiveFloat = 2.0
+    SIMULATOR_TEMPERATURE: SimulatorTemperature = 32.0
+    SIMULATOR_HUMIDITY: SimulatorHumidity = 55.0
+    SIMULATOR_MACHINE_STATUS: Literal["running", "stopped", "unknown"] = "running"
 
     # CORS
     CORS_ORIGINS: str = "http://localhost:3000,http://127.0.0.1:3000"
@@ -144,10 +161,10 @@ class Settings(BaseSettings):
             )
         return normalized
 
-    @field_validator("LEGACY_DEVICE_ID")
+    @field_validator("SIMULATOR_DEVICE_ID")
     @classmethod
-    def validate_legacy_device_id(cls, value: str) -> str:
-        return validate_device_id(value)
+    def validate_simulator_device_id(cls, value: str) -> str:
+        return validate_provisionable_device_id(value)
 
     @field_validator("CORS_ORIGINS")
     @classmethod

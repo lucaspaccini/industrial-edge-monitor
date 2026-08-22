@@ -19,8 +19,9 @@ Clone and prepare the local environment file:
 ```bash
 git clone <repository>
 cd industrial-edge-monitor
-cp .env.example .env
-scripts/generate-mqtt-security.sh --lan-host <docker-host-lan-hostname-or-ip>
+test -f .env || cp .env.example .env
+test -d .local/mqtt-security || \
+  scripts/generate-mqtt-security.sh --lan-host <docker-host-lan-hostname-or-ip>
 ```
 
 The template contains no credentials. The generator creates ignored local CA/server material and random per-client credentials without printing secrets. `.env`, `.local/`, `*.provisioning.json`, SQLite files, caches and local firmware/frontend configuration are ignored by Git and excluded from image build contexts. Per-device add/inspect/list/rotate/revoke uses the transactional workflow in [MQTT operations](mqtt-operations.md); it never edits `.env`.
@@ -52,7 +53,7 @@ Backend processes read configuration only through `backend.core.config.Settings`
 | `MQTT_RECONNECT_MAX_SECONDS` | `30` | same | Maximum reconnect delay |
 | `MQTT_TOPIC` | `industrial/telemetry` | same | Explicit legacy telemetry topic |
 | `MQTT_TOPIC_PREFIX` | `industrial/devices` | same | Per-device topic prefix |
-| `LEGACY_DEVICE_ID` | `legacy-device` | same | Identity assigned to legacy telemetry |
+| `LEGACY_DEVICE_ID` | `legacy-device` | same | Internal identity assigned to legacy telemetry; not provisionable as an ordinary device |
 | `DEVICE_OFFLINE_TIMEOUT_SECONDS` | `150` | same | Maximum `last_seen` age for effective online state |
 | `CORS_ORIGINS` | localhost origins | same unless overridden | Comma-separated browser origins, including scheme and optional port |
 | `NEXT_PUBLIC_API_URL` | `http://127.0.0.1:8000` | `http://localhost:8000` fallback | Browser-reachable FastAPI URL embedded into the frontend build |
@@ -160,8 +161,9 @@ Requirements: Python 3.14 and a separately configured TLS/authenticated Mosquitt
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install -r requirements.txt
-cp .env.example .env
-scripts/generate-mqtt-security.sh --lan-host localhost
+test -f .env || cp .env.example .env
+test -d .local/mqtt-security || \
+  scripts/generate-mqtt-security.sh --lan-host localhost
 ```
 
 Run the collector explicitly with its dedicated identity:
@@ -184,18 +186,21 @@ uvicorn backend.api.main:app --reload
 
 Database initialization and migrations are idempotent. The configured relative path is resolved from the repository root and its parent directory is created automatically. The collector does not hot-reload; restart it after changing ingestion or alert-engine code.
 
-Optional legacy telemetry simulator:
+The portfolio second-device simulator is an explicit Compose demo profile. It
+uses the generated `edge-node-02` device credential and never starts with the
+ordinary stack:
 
 ```bash
-source .venv/bin/activate
-MQTT_CLIENT_ENABLED=true \
-MQTT_USERNAME=simulator \
-MQTT_PASSWORD_FILE=.local/mqtt-security/clients/simulator.password \
-MQTT_CLIENT_ID=industrial-edge-simulator \
-python -m backend.simulator.publisher
+SIMULATOR_TEMPERATURE=42 \
+SIMULATOR_HUMIDITY=61 \
+docker compose --profile demo up --detach simulator
 ```
 
-The simulator's `simulator` role can publish only `industrial/telemetry`; it must not reuse the collector identity.
+It publishes telemetry plus retained health/availability on
+`industrial/devices/edge-node-02/*`, registers an offline Last Will and reports
+only a software `simulator` health component. The old `simulator` service role
+remains solely for explicit legacy-topic compatibility checks. See the
+[portfolio demo](portfolio-demo.md).
 
 ### Frontend
 
@@ -206,7 +211,7 @@ nvm install
 nvm use
 node --version  # v24.19.0
 cd frontend
-cp .env.example .env.local
+test -f .env.local || cp .env.example .env.local
 npm ci --ignore-scripts
 npm run dev
 ```

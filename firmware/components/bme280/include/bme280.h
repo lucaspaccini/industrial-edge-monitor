@@ -22,6 +22,14 @@ typedef struct {
 esp_err_t bme280_init(void);
 
 /**
+ * @brief Invalidate the provider and remove its I2C device handle.
+ *
+ * Safe to call repeatedly. If removal fails, the handle is retained so a
+ * later initialization can retry removal without registering a duplicate.
+ */
+esp_err_t bme280_deinit(void);
+
+/**
  * @brief Read a compensated measurement from the BME280.
  *
  * @param[out] measurement Destination measurement structure.
