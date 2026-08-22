@@ -4,7 +4,7 @@
 
 Industrial Edge Monitor is a portfolio-grade, single-host connected-device reference platform. The demo follows one physical ESP32/BME280 (`edge-node-01`) and one deliberately limited software device (`edge-node-02`) across measurement, diagnostics, reachability, persistence, alerting and recovery.
 
-Sprint 18 status: **IN PROGRESS**. The operator completed and accepted this demo and both physical sensor-recovery procedures on 22 August 2026, and all four required real application screenshots are verified. Only the future pushed GitHub-hosted workflow and its real `github-actions-green.png` remain pending. Do not describe the simulator as hardware and do not claim external CI for an unpushed revision.
+Sprint 18 status: **COMPLETED**. The operator completed and accepted this demo and both physical sensor-recovery procedures on 22 August 2026; all four required real application screenshots are verified; and GitHub Actions workflow run 8 completed successfully for pushed commit `2b75029`. The portfolio baseline is complete and the project is in maintenance mode. Do not describe the simulator as hardware or the stack as an Internet-ready product.
 
 ## Operator-provided manual demo evidence — 22 August 2026
 
@@ -151,7 +151,7 @@ Explain the identity layers: device username drives the broker `%u` ACL, topic i
 
 Show only the redacted provisioning page if safe. Explain active/candidate/rollback configuration in NVS and transactional add/rotate/revoke tooling. Passwords are generated outside Git, passed by protected files and not logged.
 
-Show `compose.yaml` and `.github/workflows/ci.yml`: non-root API/collector/frontend images, isolated MQTT and SQLite volumes, backend/frontend/firmware/container jobs. State plainly that the current Sprint 18 GitHub-hosted result remains pending until this revision is pushed.
+Show `compose.yaml` and `.github/workflows/ci.yml`: non-root API/collector/frontend images, isolated MQTT and SQLite volumes, backend/frontend/firmware/container jobs. Then reference the [verified CI evidence](images/portfolio/README.md): workflow run 8 for pushed commit `2b75029` completed with Success and all four jobs green. This proves repository verification, not deployment or release publication.
 
 ### 8. Trade-offs and conclusion — 45 seconds
 
@@ -201,4 +201,4 @@ Limit: this variant does **not** prove ESP-IDF execution, BME280 measurement, GP
 | Alert does not activate | Create the rule before the next sample; confirm `SIMULATOR_TEMPERATURE` exceeds the threshold and the selected device is `edge-node-02`. |
 | Port conflict | `scripts/check-host-ports.py 3000 8000 8883` reports the conflict and changes nothing. Inspect the exact owner and stop/reconfigure only that process. |
 
-The completed operator-provided sensor evidence is recorded in the [BME280 failure and recovery checklist](sensor-failure-runbook.md). Screenshot inspection and the remaining filename/hosted-CI blockers are tracked in the [screenshot evidence register](images/portfolio/README.md).
+The completed operator-provided sensor evidence is recorded in the [BME280 failure and recovery checklist](sensor-failure-runbook.md). All five image inspections, including the successful GitHub-hosted CI capture, are recorded in the [screenshot evidence register](images/portfolio/README.md).

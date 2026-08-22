@@ -284,7 +284,7 @@ After a push or pull request, open the repository's **Actions** tab, select the 
 - GitHub permits rerunning failed jobs or the complete workflow when the user has the necessary repository permission. A rerun uses the same commit but current external services and caches may differ.
 - The repository commit and pull-request pages show the combined status checks associated with the revision.
 
-The workflow file existing in a local checkout does not prove an external run. For any pushed revision, completion of all four GitHub-hosted jobs is the final repository gate. The Sprint 16 Node.js 24.19.0 workflow is configured and locally verified; it must still be confirmed by the next GitHub Actions run after push.
+The workflow file existing in a local checkout does not prove an external run. For any pushed revision, completion of all four GitHub-hosted jobs is the final repository gate. For Sprint 18, that external gate is recorded below for pushed commit `2b75029`.
 
 ## Local reproduction
 
@@ -345,14 +345,24 @@ Passing these commands locally increases confidence and shortens feedback time. 
 | Cache appears stale | Determine whether the failure occurs before or after dependency installation. Setup-action caches store downloads, not authoritative source; lockfiles and clean installation remain authoritative. |
 | Workflow YAML is invalid | GitHub may reject the workflow before jobs start. Inspect the Actions annotation for the exact file and line; local `docker compose config` cannot validate GitHub Actions YAML semantics. |
 
+## Sprint 18 GitHub-hosted verification
+
+Operator-provided evidence dated 22 August 2026 and the directly inspected [real workflow capture](images/portfolio/github-actions-green.png) establish:
+
+- pushed commit `2b75029` (`feat(portfolio): add multi-device demo and validation hardening`);
+- GitHub Actions workflow run 8 with status **Success**;
+- green `Backend tests`, `Frontend checks`, `Firmware build`, and `Container build and smoke test` jobs.
+
+The 3756×1446 RGBA PNG is readable, matches the commit and run status, and exposes no sensitive data. The visible repository owner and commit hash are public identifiers. This closes the Sprint 18 GitHub-hosted CI gate but does not prove deployment, Internet readiness, a tag or a GitHub Release.
+
 ## Current limitations and future evolution
 
 The Sprint 17 commit was published and, according to the operator-provided result, GitHub Actions completed without errors: backend tests, frontend checks, firmware build, and container build plus smoke test all passed. This GitHub-hosted result is distinct from the local automated checks and from the separately recorded manual hardware evidence in [Device provisioning](device-provisioning.md#operator-provided-hardware-verification-record). No run ID, commit SHA, duration or additional output is recorded because none was supplied.
 
-Future CI and release work includes:
+Possible CI and release work, none of which is an automatic next sprint, includes:
 
 - branch protection requiring the CI status before merge;
-- a workflow badge after a successful repository run exists;
+- an optional workflow badge for the verified workflow;
 - code coverage collection and reporting;
 - explicit type checking;
 - pre-commit hooks for faster local feedback;

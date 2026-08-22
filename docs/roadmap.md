@@ -22,19 +22,22 @@ Industrial Edge Monitor is bounded as a portfolio-grade, single-host connected-d
 | Operator-run complete portfolio demo | PASS | Operator-provided 22 August 2026 record covers both devices, selector isolation, simulator-only health, scoped alert, SIGKILL/LWT, restart, SIGTERM and graceful restart. |
 | Four real application screenshots | PASS | All required PNG paths pass structural, visual, framing and sensitive-content inspection. |
 | Local automated verification | PASS | Final Sprint 18 command matrix is recorded in sprint history. |
-| GitHub-hosted Sprint 18 CI | IN PROGRESS | Requires future push and inspection of the resulting workflow run. |
-| `github-actions-green.png` | IN PROGRESS | Must be captured only after that GitHub-hosted run is green. |
+| GitHub-hosted Sprint 18 CI | PASS | Workflow run 8 for pushed commit `2b75029` completed with Success; backend, frontend, firmware and container jobs are green. |
+| `github-actions-green.png` | PASS | Real 3756×1446 RGBA capture passed structural, visual and sensitive-content inspection. |
 
-Portfolio state remains **SPRINT 18 IN PROGRESS** while any REQUIRED row is not PASS. Software, local gates, operator demo, physical BME280 recovery and the four application screenshots are complete. Only the future hosted CI run and its real `github-actions-green.png` remain; closure language must not change before both exist.
+All REQUIRED rows are PASS. **SPRINT 18 COMPLETED. PORTFOLIO COMPLETE. MAINTENANCE MODE.** No tag or GitHub Release is implied by this closure; either remains a separate operator decision.
 
-## Future maintenance scope (after closure)
+## Maintenance mode
 
-Once closure is evidenced, normal work is limited to:
+Maintenance mode means:
 
-- compatible dependency and toolchain updates with the existing gates;
-- security advisory triage within the documented boundary;
-- bug fixes, reliability regressions and documentation corrections;
-- re-running local/hosted checks after maintenance changes.
+- no new sprint is planned automatically;
+- real bug fixes, reliability regressions and documentation corrections remain valid work;
+- security advisories and compatible dependency/toolchain updates are handled with the existing gates;
+- extensions are considered only when justified by a concrete operating need,
+  a relevant technical requirement emerging from professional practice, a
+  recurring technical request or a verified market signal;
+- documented limits do not automatically become backlog to implement.
 
 Maintenance does not imply new product scope.
 

@@ -2,9 +2,31 @@
 
 Industrial Edge Monitor is an end-to-end ESP32/IoT monitoring platform. An ESP32 reads a BME280, publishes validated telemetry and diagnostics over MQTT, and a Python/Next.js stack stores, evaluates and displays data per device.
 
-The project is a portfolio-grade, single-host connected-device reference platform for IoT platform, edge software, connected-device, embedded software and Linux/edge engineering roles. It is intentionally not a SaaS, multi-tenant fleet manager or general cloud platform.
+The project is a portfolio-grade, single-host connected-device reference platform. It is intentionally not a SaaS, multi-tenant fleet manager or general cloud platform.
 
-> **Sprint 18 status: IN PROGRESS.** Software, local gates, the operator demo, both physical BME280 recovery procedures and all four real application screenshots are PASS. Final portfolio closure is pending only the future pushed GitHub-hosted CI run and its real `github-actions-green.png`. No `v1.0.0` release is claimed.
+> **PORTFOLIO COMPLETE — MAINTENANCE MODE.** Sprint 18 is completed: software, local gates, the operator demo, both physical BME280 recovery procedures, all four real application screenshots and GitHub-hosted workflow run 8 for commit `2b75029` are PASS. No `v1.0.0` tag or GitHub Release is claimed.
+
+## Project purpose
+
+Industrial Edge Monitor was developed from a sustained interest in embedded,
+IoT and edge technologies and from the deliberate goal of understanding how a
+complete connected-device system is designed, operated and maintained.
+
+The project turns that technical exploration into durable, publicly verifiable
+technical capital. It intentionally applies professional engineering practices
+across firmware, secure device communication, diagnostics, ingestion,
+persistence, APIs, user-facing visualization, testing, reproducible deployment,
+continuous integration and documentation.
+
+It also provides a reusable reference architecture for future connected-device
+and edge systems. Professional evidence is a natural consequence of the
+system's completeness and reproducibility, but it is not the project's sole
+purpose.
+
+Parts of the implementation may support future product or asset exploration,
+but Industrial Edge Monitor is neither presented as a finished commercial
+product nor assumed to be the definitive asset. Any commercial direction must
+follow validated market needs.
 
 ## Current capabilities
 
@@ -63,7 +85,7 @@ The following real application frames were visually inspected on 22 August 2026.
 
 ![Device-scoped high-temperature alert and event history for edge-node-02](docs/images/portfolio/alert-active-history.png)
 
-The complete four-frame application set, including the two-device selector and Last Will offline transition, remains in the [portfolio demo](docs/portfolio-demo.md). All four required application screenshots are PASS. The future hosted-CI frame remains **IN PROGRESS** and is not claimed. See the [screenshot evidence register](docs/images/portfolio/README.md).
+The complete four-frame application set, including the two-device selector and Last Will offline transition, remains in the [portfolio demo](docs/portfolio-demo.md). All four required application screenshots are PASS. The separately registered GitHub Actions frame verifies the successful hosted run without turning this README into a screenshot gallery. See the [screenshot evidence register](docs/images/portfolio/README.md).
 
 ## Docker Compose quick start
 
@@ -195,7 +217,7 @@ scripts/mqtt-device-lifecycle-smoke.sh
 scripts/multi-device-demo-smoke.sh
 ```
 
-The GitHub Actions workflow defines separate backend, frontend, firmware and container jobs. The container job generates temporary security material, exercises positive and negative TLS/authentication/ACL cases, rejects an invalid payload without persistence, verifies MQTT-to-API ingestion and checks SQLite persistence across container recreation. It performs no deployment. Sprint 18 GitHub-hosted status remains **IN PROGRESS** until this revision is pushed and the resulting run is inspected. See [docs/ci.md](docs/ci.md).
+The GitHub Actions workflow defines separate backend, frontend, firmware and container jobs. The container job generates temporary security material, exercises positive and negative TLS/authentication/ACL cases, rejects an invalid payload without persistence, verifies MQTT-to-API ingestion and checks SQLite persistence across container recreation. It performs no deployment. Workflow run 8 completed successfully for pushed Sprint 18 commit `2b75029`, with backend, frontend, firmware and container jobs green; the real capture is recorded in the [screenshot evidence register](docs/images/portfolio/README.md). See [docs/ci.md](docs/ci.md).
 
 ## Security boundary
 
@@ -213,4 +235,4 @@ tests/         Isolated backend tests
 compose.yaml   Reproducible single-host stack
 ```
 
-Latest completed milestone: **Sprint 17 — Persistent Device Configuration, Local Web Provisioning and Credential Lifecycle**. **Sprint 18 software, local gates, operator demo, both physical BME280 recovery procedures and four application screenshots are verified; final closure remains IN PROGRESS pending hosted CI and its real green-run screenshot.** The project remains single-host and trusted-LAN only, without API/dashboard authentication, HTTPS ingress, Secure Boot, flash/NVS encryption, OTA, store-and-forward, automatic backup or multi-host storage. These are documented trade-offs, not an implicit next sprint.
+Latest completed milestone: **Sprint 18 — Portfolio Completion, Multi-Device Demonstration and Final Validation**. The portfolio baseline is complete and the project is in maintenance mode: no new sprint is planned automatically; work is limited to real bug fixes, security and dependency maintenance, and extensions justified by a concrete operating need, recurring technical request or verified market signal. The project remains single-host and trusted-LAN only, without API/dashboard authentication, HTTPS ingress, Secure Boot, flash/NVS encryption, OTA, store-and-forward, automatic backup or multi-host storage. These documented trade-offs do not automatically become backlog. A tag or GitHub Release remains a separate operator decision.

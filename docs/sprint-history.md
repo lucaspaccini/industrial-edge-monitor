@@ -686,16 +686,11 @@ Sprint 17 closes with a controlled provisioning architecture, reproducible 4 MiB
 
 ## Status
 
-**SPRINT 18 IN PROGRESS**
+**SPRINT 18 COMPLETED**
 
-Sprint 18 software and local gates are implemented and verified. Operator-provided demo and physical BME280 evidence dated 22 August 2026 are PASS, as are all four required application screenshots. Final portfolio closure remains pending GitHub-hosted CI and its real green-run screenshot.
+Sprint 18 software and local gates are implemented and verified. Operator-provided demo and physical BME280 evidence dated 22 August 2026 are PASS, all four required application screenshots are verified, and GitHub Actions workflow run 8 completed successfully for pushed implementation commit `2b75029`. Its real `docs/images/portfolio/github-actions-green.png` evidence also passed structural, visual and sensitive-content inspection.
 
-Remaining evidence:
-
-- successful GitHub-hosted workflow for the future pushed Sprint 18 revision;
-- real `docs/images/portfolio/github-actions-green.png` captured only after that run is verified.
-
-No tag, GitHub release, commit or push was created. `PORTFOLIO COMPLETE` and maintenance mode are not yet declared.
+All REQUIRED evidence is PASS: **PORTFOLIO COMPLETE. MAINTENANCE MODE.** No tag or GitHub Release was created or is implied; either remains a separate operator decision. The final documentation-only closure changes are local until the operator separately commits or pushes them.
 
 ## Goal and boundary
 
@@ -737,6 +732,16 @@ Package the existing system as professional evidence, demonstrate its real multi
 - Cleanup: no Sprint 18 smoke container, network, volume or temporary security directory remained after traps completed.
 - Existing-bundle portfolio preflight PASS using a public certificate SAN: version-1/symlink boundary, chain/validity/hostname, conditional permission normalization, free ports, stopped stack, demo-only simulator profile and non-root password-file readability were verified without printing credential content.
 
+### GitHub-hosted verification — 22 August 2026
+
+- Pushed Sprint 18 implementation commit: `2b75029` (`feat(portfolio): add multi-device demo and validation hardening`).
+- GitHub Actions workflow run 8: **Success**.
+- `Backend tests`: PASS.
+- `Frontend checks`: PASS.
+- `Firmware build`: PASS.
+- `Container build and smoke test`: PASS.
+- The real workflow capture at `docs/images/portfolio/github-actions-green.png` was inspected directly. It shows the matching commit, Success status and all four green jobs; it contains no visible sensitive data. This is CI evidence only and does not claim a deployment, tag or GitHub Release.
+
 ### Operator-provided manual evidence — 22 August 2026
 
 - **BME280 communication failure/recovery — PASS.** Sprint 18 firmware was flashed without erasing NVS. Physically interrupting SDA/SCL produced `ESP_ERR_INVALID_RESPONSE`; failed samples were rejected, sensor health became `FAULT`, overall health became `DEGRADED`, and availability stayed `ONLINE`. MQTT, system time and machine status stayed `HEALTHY`. Complete reinitialization attempts continued. After reconnection the BME280 was detected, calibration data loaded, initialization completed, telemetry resumed, `samples_ok` advanced, and sensor/overall health returned `HEALTHY` without a manual ESP32 reboot.
@@ -751,7 +756,7 @@ Package the existing system as professional evidence, demonstrate its real multi
 - `alert-active-history.png` — **PASS**, 2745×1836 RGBA PNG; active rule and event history visibly scoped to `edge-node-02`.
 - `device-offline.png` — **PASS**, 2745×1880 RGBA PNG; `edge-node-02` is visibly offline with its alert and rule retained.
 - All four supplied application images passed direct pixel review for coherent framing and absence of visible passwords, setup secrets, tokens, cookies, CSRF values, SSIDs, private keys, provisioning packages and credential-bearing terminals. They are real dashboard captures, not placeholders or generated illustrations.
-- `github-actions-green.png` — **IN PROGRESS**; no hosted-CI screenshot is claimed before the future pushed run.
+- `github-actions-green.png` — **PASS**, 3756×1446 RGBA PNG; workflow run 8, pushed commit `2b75029`, Success and all four green jobs are visible with no sensitive data.
 
 ## Definition of Done
 
@@ -759,7 +764,9 @@ Package the existing system as professional evidence, demonstrate its real multi
 | --- | --- | --- |
 | Sprint 18 software implementation | PASS | Strict validation, simulator, reliability hardening and documentation package are locally implemented. |
 | Strict collector timestamp/numeric/device-ID contract | PASS | Unit, integration and Compose non-persistence tests. |
-| Credible second device and multi-device lifecycle | PASS | Opt-in simulator plus isolated acceptance smoke. |
+| Multi-device simulator and isolation | PASS | Opt-in `edge-node-02` plus isolated registry, telemetry, history, statistics, health and availability acceptance smoke. |
+| Alert lifecycle | PASS | Device-scoped rule activation/history and `edge-node-01` non-contamination verified automatically and by the operator demo. |
+| MQTT Last Will and graceful shutdown | PASS | SIGKILL/LWT offline isolation, restart recovery, SIGTERM retained offline and graceful restart verified. |
 | Sensor failure code-path inspection and runbook | PASS | Handle-safe next-cycle full reinitialization/reject/health path inspected and host-tested; two physical procedures versioned. |
 | Physical BME280 communication failure/recovery | PASS | Operator-provided 22 August 2026 SDA/SCL interruption and automatic recovery record. |
 | Physical BME280 sensor-power interruption/recovery | PASS | Operator-provided 22 August 2026 sensor-power interruption and automatic recovery record. |
@@ -768,9 +775,10 @@ Package the existing system as professional evidence, demonstrate its real multi
 | Four real application screenshots | PASS | All exact paths pass structural, visual, framing and sensitive-content inspection. |
 | Local backend/frontend/firmware/Docker gates | PASS | Results above. |
 | Repository hygiene and internal links | PASS | Tracked-artifact/secret patterns, diff whitespace and relative links checked locally. |
-| GitHub-hosted Sprint 18 workflow | IN PROGRESS | Requires future push; local workflow configuration is not external evidence. |
-| `github-actions-green.png` | IN PROGRESS | Must be a real capture of the future verified green run. |
-| Tag/release (not a Sprint 18 REQUIRED gate) | IN PROGRESS | Intentionally not created; consider only after all REQUIRED evidence is PASS. |
+| GitHub-hosted Sprint 18 workflow | PASS | Workflow run 8 for pushed commit `2b75029` completed with Success and all four jobs green. |
+| `github-actions-green.png` | PASS | Real 3756×1446 RGBA capture passed structural, visual and sensitive-content inspection. |
+
+A tag or GitHub Release is not a Sprint 18 REQUIRED gate and has not been created. It remains a separate operator decision.
 
 ## Preserved trade-offs
 
