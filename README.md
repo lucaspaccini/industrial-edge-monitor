@@ -1,10 +1,15 @@
 # Industrial Edge Monitor
 
+Secure end-to-end Industrial IoT monitoring reference platform, from ESP32
+firmware and MQTT/TLS to FastAPI, SQLite and a Next.js dashboard.
+
+[![Continuous Integration](https://github.com/lucaspaccini/industrial-edge-monitor/actions/workflows/ci.yml/badge.svg)](https://github.com/lucaspaccini/industrial-edge-monitor/actions/workflows/ci.yml)
+
+![Physical edge-node-01 health, component diagnostics and counters](docs/images/portfolio/device-health.png)
+
 Industrial Edge Monitor is an end-to-end ESP32/IoT monitoring platform. An ESP32 reads a BME280, publishes validated telemetry and diagnostics over MQTT, and a Python/Next.js stack stores, evaluates and displays data per device.
 
 The project is a portfolio-grade, single-host connected-device reference platform. It is intentionally not a SaaS, multi-tenant fleet manager or general cloud platform.
-
-> **PORTFOLIO COMPLETE — MAINTENANCE MODE.** Sprint 18 is completed: software, local gates, the operator demo, both physical BME280 recovery procedures, all four real application screenshots and GitHub-hosted workflow run 8 for commit `2b75029` are PASS. No `v1.0.0` tag or GitHub Release is claimed.
 
 ## Project purpose
 
@@ -27,6 +32,12 @@ Parts of the implementation may support future product or asset exploration,
 but Industrial Edge Monitor is neither presented as a finished commercial
 product nor assumed to be the definitive asset. Any commercial direction must
 follow validated market needs.
+
+## Status
+
+Industrial Edge Monitor is a functionally complete reference implementation. Its firmware, backend, dashboard, MQTT security controls, reproducible deployment and continuous-integration pipeline have been verified through local automation, GitHub-hosted CI and operator-provided hardware and end-to-end demo evidence.
+
+Ongoing maintenance is limited to real bug fixes, security work and compatible dependency or toolchain updates. Extensions are considered only when justified by a concrete operating need, a relevant technical requirement emerging from professional practice, a recurring technical request or a verified market signal. The single-host, trusted-LAN deployment model and the limitations documented under [Security boundary](#security-boundary) are intentional architecture boundaries rather than an implicit backlog. See the [development history](docs/sprint-history.md) for the implementation and verification record.
 
 ## Current capabilities
 
@@ -81,11 +92,9 @@ scripts/multi-device-demo-smoke.sh
 
 The following real application frames were visually inspected on 22 August 2026. They contain no visible credentials, setup secrets, tokens, cookies, CSRF values, SSIDs, private keys, provisioning packages or credential-bearing terminals.
 
-![Physical edge-node-01 health, component diagnostics and counters](docs/images/portfolio/device-health.png)
-
 ![Device-scoped high-temperature alert and event history for edge-node-02](docs/images/portfolio/alert-active-history.png)
 
-The complete four-frame application set, including the two-device selector and Last Will offline transition, remains in the [portfolio demo](docs/portfolio-demo.md). All four required application screenshots are PASS. The separately registered GitHub Actions frame verifies the successful hosted run without turning this README into a screenshot gallery. See the [screenshot evidence register](docs/images/portfolio/README.md).
+The complete four-frame application set, including the two-device selector and Last Will offline transition, is presented in the [portfolio demo](docs/portfolio-demo.md). The separately registered GitHub Actions frame documents the successful hosted run without turning this README into a screenshot gallery. See the [screenshot evidence register](docs/images/portfolio/README.md).
 
 ## Docker Compose quick start
 
@@ -190,7 +199,7 @@ idf.py -C firmware build
 idf.py -C firmware -p /dev/ttyUSB0 flash monitor
 ```
 
-The versioned baseline targets the verified 4 MiB ESP32 and builds one device-independent image. On a blank device, read the one-time setup secret from serial, join the WPA2 `IEM-Setup-*` network and open `http://192.168.4.1`. Wi-Fi and MQTT credentials, public broker CA, identity, telemetry cadence, machine GPIO and maintenance policy are then validated and stored in NVS. The operator-provided Sprint 17 hardware record covers the corrected phone path, provisioning, activation, rollback, credential lifecycle and reset/recovery flows. See [device provisioning](docs/device-provisioning.md) for that record, the destructive migration and local API, and [MQTT operations](docs/mqtt-operations.md) for broker/device procedures. Never connect a 24 V industrial signal directly to an ESP32 GPIO; use suitable conditioning and isolation.
+The versioned baseline targets the verified 4 MiB ESP32 and builds one device-independent image. On a blank device, read the one-time setup secret from serial, join the WPA2 `IEM-Setup-*` network and open `http://192.168.4.1`. Wi-Fi and MQTT credentials, public broker CA, identity, telemetry cadence, machine GPIO and maintenance policy are then validated and stored in NVS. The operator-provided hardware record covers the corrected phone path, provisioning, activation, rollback, credential lifecycle and reset/recovery flows. See [device provisioning](docs/device-provisioning.md) for that record, the destructive migration and local API, and [MQTT operations](docs/mqtt-operations.md) for broker/device procedures. Never connect a 24 V industrial signal directly to an ESP32 GPIO; use suitable conditioning and isolation.
 
 ## Quality gates
 
@@ -217,7 +226,7 @@ scripts/mqtt-device-lifecycle-smoke.sh
 scripts/multi-device-demo-smoke.sh
 ```
 
-The GitHub Actions workflow defines separate backend, frontend, firmware and container jobs. The container job generates temporary security material, exercises positive and negative TLS/authentication/ACL cases, rejects an invalid payload without persistence, verifies MQTT-to-API ingestion and checks SQLite persistence across container recreation. It performs no deployment. Workflow run 8 completed successfully for pushed Sprint 18 commit `2b75029`, with backend, frontend, firmware and container jobs green; the real capture is recorded in the [screenshot evidence register](docs/images/portfolio/README.md). See [docs/ci.md](docs/ci.md).
+The GitHub Actions workflow defines separate backend, frontend, firmware and container jobs. The container job generates temporary security material, exercises positive and negative TLS/authentication/ACL cases, rejects an invalid payload without persistence, verifies MQTT-to-API ingestion and checks SQLite persistence across container recreation. It performs no deployment. Workflow run 8 completed successfully for pushed baseline commit `2b75029`, with backend, frontend, firmware and container jobs green; the real capture is recorded in the [screenshot evidence register](docs/images/portfolio/README.md). See [docs/ci.md](docs/ci.md).
 
 ## Security boundary
 
@@ -230,9 +239,11 @@ backend/       MQTT collector, persistence, alert engine and FastAPI
 docker/        Mosquitto deployment configuration
 firmware/      Modular ESP-IDF firmware
 frontend/      Next.js monitoring dashboard and production image
-docs/          Architecture, setup, API, roadmap and sprint history
+docs/          Architecture, setup, API, roadmap and development history
 tests/         Isolated backend tests
 compose.yaml   Reproducible single-host stack
 ```
 
-Latest completed milestone: **Sprint 18 — Portfolio Completion, Multi-Device Demonstration and Final Validation**. The portfolio baseline is complete and the project is in maintenance mode: no new sprint is planned automatically; work is limited to real bug fixes, security and dependency maintenance, and extensions justified by a concrete operating need, recurring technical request or verified market signal. The project remains single-host and trusted-LAN only, without API/dashboard authentication, HTTPS ingress, Secure Boot, flash/NVS encryption, OTA, store-and-forward, automatic backup or multi-host storage. These documented trade-offs do not automatically become backlog. A tag or GitHub Release remains a separate operator decision.
+## License
+
+Copyright © 2026 Luca Spaccini. All rights reserved. No open-source license is currently granted.
